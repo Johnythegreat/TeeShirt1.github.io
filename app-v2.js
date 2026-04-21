@@ -801,6 +801,11 @@ function initShop(){
   $("shopNowBtn").onclick = () => $("productsSection").scrollIntoView({behavior:"smooth"});
   $("openAccountBtn").onclick = () => openInquiry();
   $("openCartBtn").onclick = () => openDrawer("cart");
+
+  if($("openInboxBtn")){
+  $("openInboxBtn").onclick = () => openInquiry();
+}
+  
   $("navCart").onclick = () => openDrawer("cart");
   $("navAccount").onclick = () => openDrawer("account");
   $("navCategory").onclick = () => $("productsSection").scrollIntoView({behavior:"smooth"});
