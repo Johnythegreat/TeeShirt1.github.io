@@ -1,13 +1,20 @@
-TEE SHIRT - STABLE STORE + SAFE CHAT
+TEE SHIRT - MESSAGES SYSTEM + IMAGE SENDING
 
-This build keeps the working store/admin logic and adds back a safe text chat:
-- admin login works
-- products load again
-- customer page works
-- custom bulk order chat works
-- admin messages tab works
+Base:
+- tee-shirt-messages-system.zip behavior retained
+- Start Custom Design opens the message form
+
+Added:
+- customer can send one image with the message
+- admin can send one image when replying
+- automatic low-resolution compression before upload
 
 Important:
-1. Upload all files to your site
-2. Publish firestore.rules again
-3. This version restores the shop first, then adds chat safely
+1. Enable Firebase Storage
+2. Publish firestore.rules
+3. Open storage.rules.txt and publish that in Firebase Storage Rules
+
+Image limits:
+- original file max: 2MB
+- compressed JPEG target: around 280KB
+- max side: 1280px

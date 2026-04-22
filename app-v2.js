@@ -1,8 +1,10 @@
 import { db, auth, firebaseReady, ADMIN_EMAILS } from "./firebase-config.js";
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, onSnapshot, serverTimestamp, query, orderBy, runTransaction, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
 const page = document.body.dataset.page;
+const storage = getStorage();
 const PRODUCTS_KEY = "tee_shirt_products";
 const CART_KEY = "tee_shirt_cart";
 const ACCOUNT_KEY = "tee_shirt_account";
@@ -10,7 +12,6 @@ const CUSTOMERS_KEY = "tee_shirt_customers";
 const ORDERS_KEY = "tee_shirt_orders";
 const HISTORY_KEY = "tee_shirt_order_history";
 const MESSAGES_KEY = "tee_shirt_messages";
-const CHAT_PHONE_KEY = "tee_shirt_chat_phone";
 const MODE_KEY = "tee_shirt_mode";
 const categories = ["All","Oversized","Vintage","Minimal","Anime","Couple","New Arrival"];
 const demoProducts = [
@@ -238,113 +239,100 @@ function initAdminLogin(){
 }
 
 
-async function saveInquiryMessage(payload){
-  const now = new Date().toISOString();
-  const starter = { sender:"customer", text: payload.message || "", at: now };
 
-  if(getMode()==="firebase" && firebaseReady){
-    await addDoc(collection(db, "messages"), {
-      name: payload.name,
-      phone: payload.phone,
-      latestMessage: payload.message || "",
-      status:"New",
-      unreadCustomer:false,
-      unreadAdmin:true,
-      customerTyping:false,
-      adminTyping:false,
-      lastSeenByCustomer:"",
-      lastSeenByAdmin:"",
-      thread:[starter],
-      createdAt: now,
-      updatedAt: now
-    });
+async function compressImageFile(file){
+  const maxInputBytes = 2 * 1024 * 1024;
+  if(file.size > maxInputBytes) throw new Error("Image too large. Max 2MB.");
+  const bitmap = await createImageBitmap(file);
+  const maxSide = 1280;
+  const ratio = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+  const width = Math.max(1, Math.round(bitmap.width * ratio));
+  const height = Math.max(1, Math.round(bitmap.height * ratio));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  let quality = 0.72;
+  let blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", quality));
+  while(blob && blob.size > 280 * 1024 && quality > 0.42){
+    quality -= 0.08;
+    blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", quality));
+  }
+  return blob;
+}
+
+async function uploadChatImage(file){
+  if(!file) return "";
+  if(getMode() !== "firebase" || !firebaseReady){
+    throw new Error("Image upload needs Firebase mode.");
+  }
+  const blob = await compressImageFile(file);
+  const storageRef = ref(storage, "chatImages/" + Date.now() + "_" + Math.random().toString(36).slice(2) + ".jpg");
+  await uploadBytes(storageRef, blob, { contentType: "image/jpeg" });
+  return await getDownloadURL(storageRef);
+}
+
+async function previewCompressedImage(file){
+  const blob = await compressImageFile(file);
+  return URL.createObjectURL(blob);
+}
+
+function renderImagePreview(areaId, inputId, stateKey){
+  const area = $(areaId);
+  if(!area) return;
+  const url = window[stateKey];
+  if(!url){
+    area.classList.add("hidden");
+    area.innerHTML = "";
     return;
   }
+  area.classList.remove("hidden");
+  area.innerHTML = `<div class="image-preview-card"><img src="${url}" alt="Selected image"><button class="image-preview-remove" type="button" id="${areaId}_remove">✕</button></div>`;
+  const btn = $(`${areaId}_remove`);
+  if(btn){
+    btn.onclick = () => {
+      window[stateKey] = "";
+      const input = $(inputId);
+      if(input) input.value = "";
+      renderImagePreview(areaId, inputId, stateKey);
+    };
+  }
+}
 
+async function saveInquiryMessage(payload){
+  if(getMode()==="firebase" && firebaseReady){
+    await addDoc(collection(db, "messages"), { ...payload, status:"New", image: payload.image || "", createdAt:serverTimestamp() });
+    return;
+  }
   const items = getLocalMessages();
-  items.unshift({
-    id:"MSG-" + Date.now(),
-    name: payload.name,
-    phone: payload.phone,
-    latestMessage: payload.message || "",
-    status:"New",
-    unreadCustomer:false,
-    unreadAdmin:true,
-    customerTyping:false,
-    adminTyping:false,
-    lastSeenByCustomer:"",
-    lastSeenByAdmin:"",
-    thread:[starter],
-    createdAt: now,
-    updatedAt: now
-  });
+  items.unshift({ id:"MSG-" + Date.now(), ...payload, status:"New", image: payload.image || "", createdAt:new Date().toISOString() });
   setLocalMessages(items);
 }
 
-async function updateMessage(messageId, updates){
+async function updateMessageStatus(messageId, newStatus, cache=[]){
   if(getMode()==="firebase" && firebaseReady){
-    await updateDoc(doc(db, "messages", messageId), updates);
+    await updateDoc(doc(db, "messages", messageId), { status:newStatus });
     return;
   }
   const items = getLocalMessages();
   const idx = items.findIndex(x => x.id === messageId);
   if(idx >= 0){
-    items[idx] = { ...items[idx], ...updates };
+    items[idx].status = newStatus;
     setLocalMessages(items);
   }
 }
 
 function subscribeMessages(callback){
-  const sortMessages = (arr) => arr.slice().sort((a,b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")));
   if(getMode()==="firebase" && firebaseReady){
-    return onSnapshot(collection(db, "messages"), (snapshot) => {
-      callback(sortMessages(snapshot.docs.map(d => ({ id:d.id, ...d.data() }))), "firebase");
-    }, () => callback(sortMessages(getLocalMessages()), "local"));
+    return onSnapshot(query(collection(db, "messages"), orderBy("createdAt", "desc")), (snapshot) => {
+      callback(snapshot.docs.map(d => ({ id:d.id, ...d.data() })), "firebase");
+    }, () => callback(getLocalMessages(), "local"));
   }
-  callback(sortMessages(getLocalMessages()), "local");
-  return storageSync(() => callback(sortMessages(getLocalMessages()), "local"));
+  callback(getLocalMessages(), "local");
+  return storageSync(() => callback(getLocalMessages(), "local"));
 }
 
-function playNotificationBeep(){
-  try{
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if(!Ctx) return;
-    const ctx = new Ctx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.value = 880;
-    gain.gain.value = 0.03;
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.start(); osc.stop(ctx.currentTime + 0.12);
-  }catch{}
-}
-
-function renderThreadHTML(thread, otherName, seenCustomer, seenAdmin, typingWho){
-  if(!thread || !thread.length){
-    return '<div class="chat-empty">No messages yet. Start the conversation.</div>';
-  }
-  let html = "";
-  thread.forEach((item, idx) => {
-    const who = item.sender === "admin" ? "admin" : "customer";
-    const avatar = who === "admin" ? "🧑‍💼" : "🧑";
-    const label = who === "admin" ? "Admin" : otherName;
-    const isLast = idx === thread.length - 1;
-    html += '<div class="chat-row ' + who + '"><div class="chat-avatar">' + avatar + '</div><div class="chat-bubble-wrap"><div class="chat-bubble">' +
-      (item.text ? '<div>' + escapeHtml(item.text) + '</div>' : '') +
-      '<span class="chat-meta">' + label + ' • ' + escapeHtml(String(item.at || "").replace("T"," ").slice(0,16)) + '</span>' +
-      ((who === "admin" && isLast && seenCustomer) ? '<span class="chat-status">Seen by customer</span>' : '') +
-      ((who === "customer" && isLast && seenAdmin) ? '<span class="chat-status">Seen by admin</span>' : '') +
-      '</div></div></div>';
-  });
-  if(typingWho === "admin"){
-    html += '<div class="chat-row admin"><div class="chat-avatar">🧑‍💼</div><div class="chat-bubble-wrap"><div class="typing-pill">Admin is typing <span class="typing-dots"><span></span><span></span><span></span></span></div></div></div>';
-  }
-  if(typingWho === "customer"){
-    html += '<div class="chat-row customer"><div class="chat-bubble-wrap"><div class="typing-pill">Customer is typing <span class="typing-dots"><span></span><span></span><span></span></span></div></div><div class="chat-avatar">🧑</div></div>';
-  }
-  return html;
-}
 
 if(document.getElementById("adminLoginForm")) initAdminLogin();
 else if(page === "shop") initShop();
@@ -725,67 +713,13 @@ function initShop(){
   function closeDrawer(){ drawer.classList.remove("show"); }
 
 
-  let customerMessagesCache = [];
-
-  function getCustomerPhone(){
-    return account.phone || localStorage.getItem(CHAT_PHONE_KEY) || "";
-  }
-
-  function findCustomerConversation(messages){
-    const phone = getCustomerPhone();
-    if(!phone) return null;
-    return messages.filter(m => m.phone === phone).sort((a,b)=>String(b.updatedAt||b.createdAt||"").localeCompare(String(a.updatedAt||a.createdAt||"")))[0] || null;
-  }
-
-  function updateInboxBadge(conversation){
-    const badge = $("inboxBadge");
-    if(!badge) return;
-    if(conversation && conversation.unreadCustomer){
-      badge.classList.remove("hidden");
-      badge.textContent = "1";
-    }else{
-      badge.classList.add("hidden");
-    }
-  }
-
-  async function markCustomerSeen(conversation){
-    if(!conversation) return;
-    try{
-      await updateMessage(conversation.id, { unreadCustomer:false, lastSeenByCustomer:new Date().toISOString() });
-    }catch{}
-  }
-
-  async function setCustomerTyping(conversation, isTyping){
-    if(!conversation) return;
-    try{
-      await updateMessage(conversation.id, { customerTyping: !!isTyping });
-    }catch{}
-  }
-
-  function renderCustomerChat(){
-    const box = $("customerChatWindow");
-    if(!box) return;
-    const convo = findCustomerConversation(customerMessagesCache);
-    if(!convo){
-      box.innerHTML = '<div class="chat-empty">Start your custom bulk order chat here.</div>';
-      updateInboxBadge(null);
-      return;
-    }
-    box.innerHTML = renderThreadHTML(convo.thread || [], "You", convo.lastSeenByCustomer, convo.lastSeenByAdmin, convo.adminTyping ? "admin" : "");
-    box.scrollTop = box.scrollHeight;
-    updateInboxBadge(convo);
-  }
-
   function openInquiry(){
     const modal = $("inquiryModal");
     if(!modal) return;
     $("inq_name").value = account.name || "";
-    $("inq_phone").value = account.phone || localStorage.getItem(CHAT_PHONE_KEY) || "";
+    $("inq_phone").value = account.phone || "";
     $("inq_message").value = "";
     modal.classList.remove("hidden");
-    renderCustomerChat();
-    const convo = findCustomerConversation(customerMessagesCache);
-    if(convo && convo.unreadCustomer) markCustomerSeen(convo);
   }
 
   function closeInquiry(){
@@ -797,43 +731,29 @@ function initShop(){
     const name = ($("inq_name")?.value || "").trim();
     const phone = ($("inq_phone")?.value || "").trim();
     const message = ($("inq_message")?.value || "").trim();
+    const file = $("customerImageInput")?.files?.[0] || null;
 
-    if(!name || !phone || !message){
-      showNotice("Please complete the chat form");
+    if(!name || !phone || (!message && !file)){
+      showNotice("Please complete the inquiry form");
       return;
     }
 
     try{
+      let imageUrl = "";
+      if(file) imageUrl = await uploadChatImage(file);
+      await saveInquiryMessage({ name, phone, message, image: imageUrl });
       account = { ...account, name, phone };
       writeJSON(ACCOUNT_KEY, account);
-      localStorage.setItem(CHAT_PHONE_KEY, phone);
-
-      const convo = findCustomerConversation(customerMessagesCache);
-      const now = new Date().toISOString();
-
-      if(convo){
-        const thread = Array.isArray(convo.thread) ? convo.thread.slice() : [];
-        thread.push({ sender:"customer", text: message, at: now });
-        await updateMessage(convo.id, {
-          name, phone,
-          thread,
-          latestMessage: message,
-          unreadAdmin:true,
-          unreadCustomer:false,
-          customerTyping:false,
-          status:"New",
-          updatedAt: now
-        });
-      }else{
-        await saveInquiryMessage({ name, phone, message });
-      }
-
-      $("inq_message").value = "";
-      renderCustomerChat();
+      if($("inq_message")) $("inq_message").value = "";
+      if($("customerImageInput")) $("customerImageInput").value = "";
+      window.__customerPreview = "";
+      renderImagePreview("customerPreviewArea", "customerImageInput", "__customerPreview");
+      closeInquiry();
       showNotice("Message sent to admin");
     }catch(error){
       showNotice(error?.message || "Failed to send message");
     }
+  }
   }
 
 
@@ -853,7 +773,6 @@ function initShop(){
   $("shopNowBtn").onclick = () => $("productsSection").scrollIntoView({behavior:"smooth"});
   $("openAccountBtn").onclick = () => openInquiry();
   $("openCartBtn").onclick = () => openDrawer("cart");
-  if($("openInboxBtn")) $("openInboxBtn").onclick = () => openInquiry();
   $("navCart").onclick = () => openDrawer("cart");
   $("navAccount").onclick = () => openDrawer("account");
   $("navCategory").onclick = () => $("productsSection").scrollIntoView({behavior:"smooth"});
@@ -880,9 +799,8 @@ function initShop(){
   if($("productPageAddToCartBtn")) $("productPageAddToCartBtn").onclick = addDetailToCart;
   if($("closeInquiryBtn")) $("closeInquiryBtn").onclick = closeInquiry;
   if($("sendInquiryBtn")) $("sendInquiryBtn").onclick = sendInquiry;
-  if($("inq_message")) $("inq_message").oninput = async () => { const convo = findCustomerConversation(customerMessagesCache); await setCustomerTyping(convo, !!$("inq_message").value.trim()); };
+  if($("customerImageInput")) $("customerImageInput").onchange = async () => { const file = $("customerImageInput").files?.[0]; if(!file){ window.__customerPreview = ""; renderImagePreview("customerPreviewArea", "customerImageInput", "__customerPreview"); return; } try{ window.__customerPreview = await previewCompressedImage(file); renderImagePreview("customerPreviewArea", "customerImageInput", "__customerPreview"); }catch(error){ showNotice(error?.message || "Preview failed"); } };
   if($("inquiryModal")) $("inquiryModal").onclick = (e) => { if(e.target.id === "inquiryModal") closeInquiry(); };
-  subscribeMessages((messages) => { customerMessagesCache = messages; renderCustomerChat(); });
 }
 
 
@@ -898,98 +816,76 @@ function initAdmin(){
     topActions.appendChild(logoutBtn);
   }
   function updateStats(items){ $("statProducts").textContent = items.length; $("statStock").textContent = items.reduce((a,b)=>a+Number(b.stock||0),0); $("statLow").textContent = items.filter(x=>Number(x.stock||0)<=10).length; $("statCategories").textContent = new Set(items.map(x=>x.category)).size; }
-  function clearForm(){ form.reset(); $("docId").value = ""; }
-  function fillForm(item){ $("docId").value=item.id; $("name").value=item.name||""; $("brand").value=item.brand||""; $("category").value=item.category||"Oversized"; $("price").value=item.price||0; $("oldPrice").value=item.oldPrice||0; $("stock").value=item.stock||0; $("sold").value=item.sold||""; $("badge").value=item.badge||""; $("image").value=item.image||""; window.scrollTo({top:0, behavior:"smooth"}); }
+  function clearForm(){ form.reset(); $("docId").value = ""; if($("image2")) $("image2").value=""; if($("image3")) $("image3").value=""; if($("image4")) $("image4").value=""; }
+  function fillForm(item){ $("docId").value=item.id; $("name").value=item.name||""; $("brand").value=item.brand||""; $("category").value=item.category||"Oversized"; $("price").value=item.price||0; $("oldPrice").value=item.oldPrice||0; $("stock").value=item.stock||0; $("sold").value=item.sold||""; $("badge").value=item.badge||""; $("image").value=item.image||""; $("image2").value=(item.images&&item.images[1])||""; $("image3").value=(item.images&&item.images[2])||""; $("image4").value=(item.images&&item.images[3])||""; window.scrollTo({top:0, behavior:"smooth"}); }
   function renderProductsAdmin(items, source){ $("adminSourceLabel").textContent = source==="firebase" ? "Live from Firebase" : "Using local fallback"; updateStats(items); if(!items.length){ table.innerHTML = '<tr><td colspan="5" class="empty">No products found.</td></tr>'; return; } table.innerHTML = items.map(item => `<tr><td><div style="font-weight:800">${escapeHtml(item.name)}</div><div class="small">${escapeHtml(item.brand)}</div></td><td>${escapeHtml(item.category)}</td><td>${money(item.price)}</td><td>${Number(item.stock||0)}</td><td><div class="row-actions"><button class="btn ghost" data-edit="${item.id}">Edit</button><button class="btn dark" data-delete="${item.id}">Delete</button></div></td></tr>`).join(""); table.querySelectorAll("[data-edit]").forEach(btn => btn.onclick = () => { const item = items.find(x => x.id===btn.dataset.edit); if(item) fillForm(item); }); table.querySelectorAll("[data-delete]").forEach(btn => btn.onclick = async () => { try { await deleteProductItem(btn.dataset.delete); showNotice("Product deleted"); } catch { showNotice("Delete failed"); } }); }
   function renderOrders(activeOrders, historyOrders){ activeOrdersCache = activeOrders.slice(); const tbody = $("ordersTable"), historyBody = $("historyTable"); if(!tbody || !historyBody) return; if(!activeOrders.length) tbody.innerHTML = '<tr><td colspan="6" class="empty">No active orders yet.</td></tr>'; else { tbody.innerHTML = activeOrders.map(order => `<tr><td>${escapeHtml(order.id||"-")}</td><td><div style="font-weight:800">${escapeHtml(order.customer?.name||"-")}</div><div class="small">${escapeHtml(order.customer?.phone||"")}</div></td><td>${money(order.total||0)}</td><td><select class="order-status-select" data-order-status="${escapeHtml(order.id||"")}"><option value="Pending" ${order.status==="Pending"?"selected":""}>Pending</option><option value="Preparing" ${order.status==="Preparing"?"selected":""}>Preparing</option><option value="Ready" ${order.status==="Ready"?"selected":""}>Ready</option><option value="Completed" ${order.status==="Completed"?"selected":""}>Completed</option></select></td><td>${(order.items||[]).map(i => `${escapeHtml(i.name)} x${Number(i.qty)}`).join("<br>")}</td><td><button class="btn ghost" data-archive-order="${escapeHtml(order.id||"")}">Move to History</button></td></tr>`).join(""); tbody.querySelectorAll("[data-order-status]").forEach(select => select.onchange = async function(){ try { await updateOrderStatus(this.dataset.orderStatus, this.value, activeOrdersCache); showNotice(this.value==="Completed" ? "Order moved to history" : "Order status updated"); } catch { showNotice("Status update failed"); } }); tbody.querySelectorAll("[data-archive-order]").forEach(btn => btn.onclick = async () => { try { await moveOrderToHistory(btn.dataset.archiveOrder, activeOrdersCache); showNotice("Order moved to history"); } catch { showNotice("Move failed"); } }); } if(!historyOrders.length) historyBody.innerHTML = '<tr><td colspan="5" class="empty">No order history yet.</td></tr>'; else historyBody.innerHTML = historyOrders.map(order => `<tr><td>${escapeHtml(order.id||"-")}</td><td><div style="font-weight:800">${escapeHtml(order.customer?.name||"-")}</div><div class="small">${escapeHtml(order.customer?.phone||"")}</div></td><td>${money(order.total||0)}</td><td>${escapeHtml(order.status||"Completed")}</td><td>${(order.items||[]).map(i => `${escapeHtml(i.name)} x${Number(i.qty)}`).join("<br>")}</td></tr>`).join(""); }
 
-  let adminMessagesCache = [];
-  let selectedAdminMessageId = "";
-
   function renderMessages(messages){
-    const list = $("messagesList");
-    const header = $("adminConversationHeader");
-    const typingStatus = $("typingStatus");
-    const chat = $("adminChatWindow");
-    const replyText = $("adminReplyText");
-    const statusSel = $("adminMessageStatus");
-    const sendBtn = $("sendAdminReplyBtn");
-    if(!list || !header || !chat || !replyText || !statusSel || !sendBtn) return;
+    const tbody = $("messagesTable");
+    if(!tbody) return;
+    if(!messages.length){
+      tbody.innerHTML = '<tr><td colspan="4" class="empty">No messages yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = messages.map(item => {
+      const displayDate = item.createdAt?.seconds
+        ? new Date(item.createdAt.seconds * 1000).toLocaleString()
+        : (item.createdAt || "-");
+      return `
+      <tr>
+        <td>
+          <div style="font-weight:800">${escapeHtml(item.name || "-")}</div>
+          <div class="small">${escapeHtml(item.phone || "-")}</div>
+        </td>
+        <td style="min-width:260px">
+          <div style="margin-bottom:8px">${escapeHtml(item.message || "-")}</div>
+          ${item.image ? `<img class="chat-image" src="${item.image}" alt="Customer image" />` : ""}
+        </td>
+        <td>
+          <select class="order-status-select" data-message-status="${escapeHtml(item.id || "")}">
+            <option value="New" ${item.status === "New" ? "selected" : ""}>New</option>
+            <option value="Replied" ${item.status === "Replied" ? "selected" : ""}>Replied</option>
+          </select>
+          <textarea class="admin-reply-box" data-message-reply="${escapeHtml(item.id || "")}" placeholder="Type admin reply here...">${escapeHtml(item.reply || "")}</textarea>
+          <input class="admin-reply-file" type="file" data-message-file="${escapeHtml(item.id || "")}" accept="image/*" />
+        </td>
+        <td>${escapeHtml(String(displayDate).replace("T"," ").slice(0,19) || "-")}
+          <button class="btn dark admin-reply-save" style="width:100%;margin-top:8px" data-message-save="${escapeHtml(item.id || "")}">Save Reply</button>
+        </td>
+      </tr>`;
+    }).join("");
 
-    adminMessagesCache = messages;
-    if(!selectedAdminMessageId && messages.length) selectedAdminMessageId = messages[0].id;
-    const current = messages.find(m => m.id === selectedAdminMessageId) || messages[0] || null;
-    selectedAdminMessageId = current?.id || "";
-
-    list.innerHTML = messages.length ? messages.map(item => {
-      const preview = item.latestMessage || "";
-      const isActive = item.id === selectedAdminMessageId;
-      return `<div class="admin-conversation-item ${isActive ? "active" : ""} ${item.unreadAdmin ? "unread" : ""}" data-open-message="${escapeHtml(item.id)}"><div class="admin-conversation-name">${escapeHtml(item.name || "-")}${item.unreadAdmin ? '<span class="unread-badge">NEW</span>' : ''}</div><div class="small">${escapeHtml(item.phone || "-")}</div><div class="admin-conversation-preview">${escapeHtml(preview)}</div></div>`;
-    }).join("") : '<div class="chat-empty">No conversations yet.</div>';
-
-    list.querySelectorAll("[data-open-message]").forEach(btn => {
-      btn.onclick = async () => {
-        selectedAdminMessageId = btn.dataset.openMessage;
-        const convo = messages.find(m => m.id === selectedAdminMessageId);
-        if(convo?.unreadAdmin){
-          try{ await updateMessage(convo.id, { unreadAdmin:false, lastSeenByAdmin:new Date().toISOString() }); }catch{}
+    tbody.querySelectorAll("[data-message-status]").forEach(sel => {
+      sel.onchange = async () => {
+        try{
+          await updateMessage(sel.dataset.messageStatus, { status: sel.value });
+          showNotice("Message status updated");
+        }catch{
+          showNotice("Message status update failed");
         }
-        renderMessages(adminMessagesCache);
       };
     });
 
-    if(!current){
-      header.textContent = "Select a conversation";
-      if(typingStatus) typingStatus.textContent = "No one is typing";
-      chat.innerHTML = '<div class="chat-empty">No conversation selected.</div>';
-      return;
-    }
-
-    header.textContent = `${current.name || "-"} • ${current.phone || "-"}`;
-    if(typingStatus) typingStatus.textContent = current.customerTyping ? "Customer is typing..." : "No one is typing";
-    statusSel.value = current.status || "New";
-    chat.innerHTML = renderThreadHTML(current.thread || [], current.name || "Customer", current.lastSeenByCustomer, current.lastSeenByAdmin, current.customerTyping ? "customer" : "");
-    chat.scrollTop = chat.scrollHeight;
-
-    sendBtn.onclick = async () => {
-      const text = (replyText.value || "").trim();
-      if(!text){
-        showNotice("Type a reply first");
-        return;
-      }
-      try{
-        const now = new Date().toISOString();
-        const thread = Array.isArray(current.thread) ? current.thread.slice() : [];
-        thread.push({ sender:"admin", text, at: now });
-        await updateMessage(current.id, {
-          thread,
-          latestMessage: text,
-          unreadCustomer:true,
-          unreadAdmin:false,
-          adminTyping:false,
-          status:"Replied",
-          updatedAt: now
-        });
-        replyText.value = "";
-        showNotice("Reply sent");
-      }catch{
-        showNotice("Reply failed");
-      }
-    };
-
-    statusSel.onchange = async () => {
-      try{
-        await updateMessage(current.id, { status: statusSel.value });
-        showNotice("Status updated");
-      }catch{
-        showNotice("Status update failed");
-      }
-    };
-
-    replyText.oninput = async () => {
-      try{ await updateMessage(current.id, { adminTyping: !!replyText.value.trim() }); }catch{}
-    };
+    tbody.querySelectorAll("[data-message-save]").forEach(btn => {
+      btn.onclick = async () => {
+        const id = btn.dataset.messageSave;
+        const box = tbody.querySelector(`[data-message-reply="${id}"]`);
+        const fileInput = tbody.querySelector(`[data-message-file="${id}"]`);
+        const reply = (box?.value || "").trim();
+        const file = fileInput?.files?.[0] || null;
+        try{
+          let imageUrl = "";
+          if(file) imageUrl = await uploadChatImage(file);
+          await updateMessage(id, { reply, replyImage: imageUrl, status: (reply || imageUrl) ? "Replied" : "New" });
+          showNotice("Reply saved");
+        }catch(error){
+          showNotice(error?.message || "Reply save failed");
+        }
+      };
+    });
   }
+
 
   function renderCustomers(customers){ const tbody = $("customersTable"); if(!tbody) return; if(!customers.length){ tbody.innerHTML = '<tr><td colspan="4" class="empty">No customers yet.</td></tr>'; return; } tbody.innerHTML = customers.map(customer => `<tr><td>${escapeHtml(customer.name||"-")}</td><td>${escapeHtml(customer.phone||"-")}</td><td>${escapeHtml(customer.email||"-")}</td><td>${escapeHtml(customer.address||"-")}</td></tr>`).join(""); }
   function switchTab(tabName){ document.querySelectorAll(".admin-tab-panel").forEach(panel => panel.classList.add("hidden")); const target = $("tab-"+tabName); if(target) target.classList.remove("hidden"); document.querySelectorAll(".admin-tab-btn").forEach(btn => btn.classList.toggle("active", btn.dataset.tab===tabName)); }
@@ -997,11 +893,26 @@ function initAdmin(){
   subscribeProducts((items, source) => renderProductsAdmin(items, source));
   subscribeOrders((activeOrders, historyOrders) => renderOrders(activeOrders, historyOrders));
   subscribeCustomers((customers) => renderCustomers(customers));
-  let __lastAdminMessageCount = 0;
-  subscribeMessages((messages) => { if(messages.length > __lastAdminMessageCount && __lastAdminMessageCount !== 0) playNotificationBeep(); __lastAdminMessageCount = messages.length; renderMessages(messages); });
+  subscribeMessages((messages) => renderMessages(messages));
   document.querySelectorAll(".admin-tab-btn").forEach(btn => btn.onclick = () => switchTab(btn.dataset.tab));
   switchTab("products");
-  form.onsubmit = async (e) => { e.preventDefault(); const docId = $("docId").value.trim(); const payload = { name:$("name").value.trim(), brand:$("brand").value.trim(), category:$("category").value, price:Number($("price").value), oldPrice:Number($("oldPrice").value), stock:Number($("stock").value), sold:$("sold").value.trim() || "0 sold", badge:$("badge").value.trim() || "New", image:$("image").value.trim() }; try { await saveProduct(payload, docId || null); clearForm(); showNotice("Product saved"); } catch { showNotice("Save failed"); } };
+  form.onsubmit = async (e) => { e.preventDefault(); const docId = $("docId").value.trim(); const payload = {
+      name:$("name").value.trim(),
+      brand:$("brand").value.trim(),
+      category:$("category").value,
+      price:Number($("price").value),
+      oldPrice:Number($("oldPrice").value),
+      stock:Number($("stock").value),
+      sold:$("sold").value.trim() || "0 sold",
+      badge:$("badge").value.trim() || "New",
+      image:$("image").value.trim(),
+      images:[
+        $("image").value.trim(),
+        $("image2") ? $("image2").value.trim() : "",
+        $("image3") ? $("image3").value.trim() : "",
+        $("image4") ? $("image4").value.trim() : ""
+      ].filter(Boolean)
+    }; try { await saveProduct(payload, docId || null); clearForm(); showNotice("Product saved"); } catch { showNotice("Save failed"); } };
   $("clearFormBtn").onclick = clearForm;
   $("seedBtn").onclick = async () => { try { await seedProducts(); showNotice("Demo products added"); } catch (error) { showNotice(error.message || "Seed failed"); } };
   $("resetBtn").onclick = () => { localStorage.removeItem(PRODUCTS_KEY); localStorage.removeItem(CART_KEY); localStorage.removeItem(ACCOUNT_KEY); localStorage.removeItem(CUSTOMERS_KEY); localStorage.removeItem(ORDERS_KEY); localStorage.removeItem(HISTORY_KEY); seedLocalIfEmpty(); showNotice("Local data reset"); };

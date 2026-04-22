@@ -80,7 +80,10 @@
                 <label>Badge<input id="badge" placeholder="Bulk Deal" /></label>
               </div>
 
-              <label>Image URL<input id="image" required placeholder="https://..." /></label>
+              <label>Main Image URL<input id="image" required placeholder="https://..." /></label>
+              <label>Gallery Image 2<input id="image2" placeholder="https://..." /></label>
+              <label>Gallery Image 3<input id="image3" placeholder="https://..." /></label>
+              <label>Gallery Image 4<input id="image4" placeholder="https://..." /></label>
 
               <div class="form-actions">
                 <button type="submit" class="btn dark">Save Product</button>
@@ -94,7 +97,7 @@
               <h2>Product List</h2>
               <p id="adminSourceLabel">Loading...</p>
             </div>
-            <div class="table-wrap">
+            <div class="chat-upload-admin-global hidden" style="display:none"></div><div class="table-wrap">
               <table class="admin-table">
                 <thead>
                   <tr><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Action</th></tr>
@@ -112,7 +115,7 @@
             <h2>Orders</h2>
             <p>Active customer orders appear here.</p>
           </div>
-          <div class="table-wrap">
+          <div class="chat-upload-admin-global hidden" style="display:none"></div><div class="table-wrap">
             <table class="admin-table">
               <thead>
                 <tr><th>Order ID</th><th>Customer</th><th>Total</th><th>Status</th><th>Items</th><th>Action</th></tr>
@@ -127,7 +130,7 @@
             <h2>Order History</h2>
             <p>Completed or moved orders transfer here automatically.</p>
           </div>
-          <div class="table-wrap">
+          <div class="chat-upload-admin-global hidden" style="display:none"></div><div class="table-wrap">
             <table class="admin-table">
               <thead>
                 <tr><th>Order ID</th><th>Customer</th><th>Total</th><th>Final Status</th><th>Items</th></tr>
@@ -144,7 +147,7 @@
             <h2>Customers</h2>
             <p>Customer profiles saved from the customer page will appear here.</p>
           </div>
-          <div class="table-wrap">
+          <div class="chat-upload-admin-global hidden" style="display:none"></div><div class="table-wrap">
             <table class="admin-table">
               <thead>
                 <tr><th>Name</th><th>Phone</th><th>Email</th><th>Address</th></tr>
@@ -159,27 +162,20 @@
         <section class="panel">
           <div class="panel-head">
             <h2>Messages</h2>
-            <p>Customer custom bulk order inquiries.</p>
+            <p>Customer custom bulk order inquiries will appear here.</p>
           </div>
-          <div class="admin-messenger">
-            <div class="admin-conversation-list" id="messagesList"></div>
-            <div class="admin-conversation-panel">
-              <div class="admin-conversation-header-wrap">
-                <div class="admin-conversation-header" id="adminConversationHeader">Select a conversation</div>
-                <div class="typing-status" id="typingStatus">No one is typing</div>
-              </div>
-              <div class="admin-chat-window" id="adminChatWindow"></div>
-              <div class="admin-compose">
-                <textarea id="adminReplyText" placeholder="Type your reply to the customer here..."></textarea>
-                <div class="admin-compose-actions">
-                  <select id="adminMessageStatus" class="order-status-select">
-                    <option value="New">New</option>
-                    <option value="Replied">Replied</option>
-                  </select>
-                  <button class="btn dark" id="sendAdminReplyBtn" type="button">Send Reply</button>
-                </div>
-              </div>
-            </div>
+          <div class="chat-upload-admin-global hidden" style="display:none"></div><div class="table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Customer</th>
+                  <th>Message</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody id="messagesTable"></tbody>
+            </table>
           </div>
         </section>
       </div>
