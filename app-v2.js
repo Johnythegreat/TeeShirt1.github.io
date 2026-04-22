@@ -773,6 +773,7 @@ function initShop(){
   $("shopNowBtn").onclick = () => $("productsSection").scrollIntoView({behavior:"smooth"});
   $("openAccountBtn").onclick = () => openInquiry();
   $("openCartBtn").onclick = () => openDrawer("cart");
+  if($("openInboxBtn")) $("openInboxBtn").onclick = () => openInquiry();
   $("navCart").onclick = () => openDrawer("cart");
   $("navAccount").onclick = () => openDrawer("account");
   $("navCategory").onclick = () => $("productsSection").scrollIntoView({behavior:"smooth"});
@@ -828,6 +829,65 @@ function initAdmin(){
       tbody.innerHTML = '<tr><td colspan="4" class="empty">No messages yet.</td></tr>';
       return;
     }
+    tbody.innerHTML = messages.map(item => {
+      const displayDate = item.createdAt?.seconds
+        ? new Date(item.createdAt.seconds * 1000).toLocaleString()
+        : (item.createdAt || "-");
+      return `
+      <tr>
+        <td>
+          <div style="font-weight:800">${escapeHtml(item.name || "-")}</div>
+          <div class="small">${escapeHtml(item.phone || "-")}</div>
+        </td>
+        <td style="min-width:260px">
+          <div style="margin-bottom:8px">${escapeHtml(item.message || "-")}</div>
+          ${item.image ? `<img class="chat-image" src="${item.image}" alt="Customer image" />` : ""}
+          ${item.reply ? `<div style="margin-top:10px;padding-top:10px;border-top:1px dashed #ddd"><strong>Admin Reply:</strong><br>${escapeHtml(item.reply)}</div>` : ""}
+          ${item.replyImage ? `<img class="chat-image" src="${item.replyImage}" alt="Reply image" />` : ""}
+        </td>
+        <td>
+          <select class="order-status-select" data-message-status="${escapeHtml(item.id || "")}">
+            <option value="New" ${item.status === "New" ? "selected" : ""}>New</option>
+            <option value="Replied" ${item.status === "Replied" ? "selected" : ""}>Replied</option>
+          </select>
+          <textarea class="admin-reply-box" data-message-reply="${escapeHtml(item.id || "")}" placeholder="Type admin reply here...">${escapeHtml(item.reply || "")}</textarea>
+          <input class="admin-reply-file" type="file" data-message-file="${escapeHtml(item.id || "")}" accept="image/*" />
+        </td>
+        <td>${escapeHtml(String(displayDate).replace("T"," ").slice(0,19) || "-")}
+          <button class="btn dark admin-reply-save" style="width:100%;margin-top:8px" data-message-save="${escapeHtml(item.id || "")}">Save Reply</button>
+        </td>
+      </tr>`;
+    }).join("");
+
+    tbody.querySelectorAll("[data-message-status]").forEach(sel => {
+      sel.onchange = async () => {
+        try{
+          await updateMessage(sel.dataset.messageStatus, { status: sel.value });
+          showNotice("Message status updated");
+        }catch{
+          showNotice("Message status update failed");
+        }
+      };
+    });
+
+    tbody.querySelectorAll("[data-message-save]").forEach(btn => {
+      btn.onclick = async () => {
+        const id = btn.dataset.messageSave;
+        const box = tbody.querySelector(`[data-message-reply="${id}"]`);
+        const fileInput = tbody.querySelector(`[data-message-file="${id}"]`);
+        const reply = (box?.value || "").trim();
+        const file = fileInput?.files?.[0] || null;
+        try{
+          let imageUrl = "";
+          if(file) imageUrl = await uploadChatImage(file);
+          await updateMessage(id, { reply, replyImage: imageUrl, status: (reply || imageUrl) ? "Replied" : "New" });
+          showNotice("Reply saved");
+        }catch(error){
+          showNotice(error?.message || "Reply save failed");
+        }
+      };
+    });
+  }
     tbody.innerHTML = messages.map(item => {
       const displayDate = item.createdAt?.seconds
         ? new Date(item.createdAt.seconds * 1000).toLocaleString()

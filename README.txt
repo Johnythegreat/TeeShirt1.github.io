@@ -1,20 +1,16 @@
-TEE SHIRT - MESSAGES SYSTEM + IMAGE SENDING
+TEE SHIRT - MESSAGES SYSTEM IMAGES FIXED
 
-Base:
-- tee-shirt-messages-system.zip behavior retained
-- Start Custom Design opens the message form
+Fixed:
+- Start Custom Design opens the popup form again
+- popup is properly overlaid, not stuck at the bottom
+- admin Messages tab shows saved messages again
 
-Added:
-- customer can send one image with the message
-- admin can send one image when replying
-- automatic low-resolution compression before upload
+Included:
+- customer image send in inquiry form
+- admin image reply in Messages tab
+- low-resolution image compression before upload
 
 Important:
-1. Enable Firebase Storage
+1. Upload all files
 2. Publish firestore.rules
-3. Open storage.rules.txt and publish that in Firebase Storage Rules
-
-Image limits:
-- original file max: 2MB
-- compressed JPEG target: around 280KB
-- max side: 1280px
+3. Publish storage.rules.txt in Firebase Storage Rules
