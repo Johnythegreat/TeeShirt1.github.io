@@ -1,22 +1,13 @@
-TEE SHIRT - FIREBASE CHAT SYNC
+TEE SHIRT - STABLE STORE + SAFE CHAT
 
-Added:
-- real Firebase Firestore message syncing
-- real Firebase Storage image upload
-- automatic low-resolution image compression before upload
-- customer/admin chat threads
-- typing indicators
-- seen indicators
-- inbox badge
-- admin new-message beep
+This build keeps the working store/admin logic and adds back a safe text chat:
+- admin login works
+- products load again
+- customer page works
+- custom bulk order chat works
+- admin messages tab works
 
 Important:
-1. Upload all files to Netlify
-2. Publish firestore.rules
-3. Publish storage.rules.txt to Firebase Storage Rules
-4. Firebase Storage must be enabled first
-
-Image limits:
-- max original file: 2MB
-- max side: 1280px
-- compressed JPEG target: around 280KB or lower
+1. Upload all files to your site
+2. Publish firestore.rules again
+3. This version restores the shop first, then adds chat safely
