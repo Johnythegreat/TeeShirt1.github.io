@@ -168,23 +168,30 @@
           <div class="admin-messenger">
             <div class="admin-conversation-list" id="messagesList"></div>
             <div class="admin-conversation-panel">
-              <div class="admin-conversation-header" id="adminConversationHeader">Select a conversation</div>
+              <div class="admin-conversation-header-wrap">
+                <div class="admin-conversation-header" id="adminConversationHeader">Select a conversation</div>
+                <div class="typing-status" id="typingStatus">No one is typing</div>
+              </div>
               <div class="admin-chat-window" id="adminChatWindow"></div>
               <div class="admin-compose">
                 <textarea id="adminReplyText" placeholder="Type your reply to the customer here..."></textarea>
+                <div class="chat-upload-row">
+                  <input type="file" id="adminImageInput" accept="image/*" />
+                  <div class="chat-upload-hint">Images auto-compress before upload</div>
+                  <div id="adminPreviewArea" class="image-preview-area hidden"></div>
+                </div>
                 <div class="admin-compose-actions">
                   <select id="adminMessageStatus" class="order-status-select">
                     <option value="New">New</option>
                     <option value="Replied">Replied</option>
                   </select>
-                  <button class="btn dark" id="sendAdminReplyBtn">Send Reply</button>
+                  <button class="btn dark" id="sendAdminReplyBtn" type="button">Send Reply</button>
                 </div>
               </div>
             </div>
           </div>
         </section>
       </div>
-
 
     </main>
   </div>

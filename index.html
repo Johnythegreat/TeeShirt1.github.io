@@ -10,7 +10,7 @@
   <div class="app">
     <header class="topbar">
       <div class="topbar-inner">
-        <button class="icon-btn" id="openInboxBtn">✉️</button>
+        <div class="topbar-inbox-wrap"><button class="icon-btn" id="openInboxBtn">✉️</button><span id="inboxBadge" class="inbox-badge hidden">1</span></div>
         <button class="icon-btn js-notice" data-text="Promos saved">📅</button>
         <div class="logo">TEE SHIRT</div>
         <a class="icon-btn" href="./admin-login.html" title="Admin">⚙️</a>
@@ -219,7 +219,7 @@
     <div class="inquiry-card messenger-card">
       <div class="drawer-head">
         <strong>Custom Bulk Order Chat</strong>
-        <button class="icon-btn" id="closeInquiryBtn">✕</button>
+        <button class="icon-btn" id="closeInquiryBtn" type="button">✕</button>
       </div>
       <div class="messenger-top-fields">
         <div class="field">
@@ -234,11 +234,15 @@
       <div class="messenger-chat-window" id="customerChatWindow"></div>
       <div class="messenger-compose">
         <textarea id="inq_message" placeholder="Tell us your shirt design idea, quantity, sizes, event date, colors, and other details."></textarea>
-        <button class="btn dark full-btn" id="sendInquiryBtn">Send Message</button>
+        <div class="chat-upload-row">
+          <input type="file" id="customerImageInput" accept="image/*" />
+          <div class="chat-upload-hint">Images auto-compress before upload</div>
+          <div id="customerPreviewArea" class="image-preview-area hidden"></div>
+        </div>
+        <button class="btn dark full-btn" id="sendInquiryBtn" type="button">Send Message</button>
       </div>
     </div>
   </div>
-
 
   <div class="notice" id="notice"></div>
 

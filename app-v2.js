@@ -1,91 +1,31 @@
-import { db, auth, firebaseReady, ADMIN_EMAILS } from "./firebase-config.js";
-import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, onSnapshot, serverTimestamp, query, orderBy, runTransaction, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-const page = document.body.dataset.page;
-const PRODUCTS_KEY = "tee_shirt_products";
-const CART_KEY = "tee_shirt_cart";
-const ACCOUNT_KEY = "tee_shirt_account";
-const CUSTOMERS_KEY = "tee_shirt_customers";
-const ORDERS_KEY = "tee_shirt_orders";
-const HISTORY_KEY = "tee_shirt_order_history";
-const MESSAGES_KEY = "tee_shirt_messages";
-const CHAT_ID_KEY = "tee_shirt_chat_id";
-const MODE_KEY = "tee_shirt_mode";
-const categories = ["All","Oversized","Vintage","Minimal","Anime","Couple","New Arrival"];
-const demoProducts = [
-  {
-    name:"Premium Oversized Black Tee",
-    brand:"TEE SHIRT",
-    category:"Oversized",
-    price:250,
-    oldPrice:349,
-    stock:25,
-    sold:"120+ sold",
-    badge:"Bulk Deal",
-    image:"https://images.unsplash.com/photo-1521572179197-9c2b31b95f4c?auto=format&fit=crop&w=800&q=80",
-    images:[
-      "https://images.unsplash.com/photo-1521572179197-9c2b31b95f4c?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1503341504253-dff4815485f1?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1576566588028-4147f3842f27?auto=format&fit=crop&w=800&q=80"
-    ]
-  },
-  {
-    name:"Vintage Washed Graphic Shirt",
-    brand:"TEE SHIRT",
-    category:"Vintage",
-    price:280,
-    oldPrice:389,
-    stock:12,
-    sold:"86+ sold",
-    badge:"Promo",
-    image:"https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=800&q=80",
-    images:[
-      "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=80"
-    ]
-  },
-  {
-    name:"Minimal White Essential Tee",
-    brand:"TEE SHIRT",
-    category:"Minimal",
-    price:250,
-    oldPrice:299,
-    stock:34,
-    sold:"200+ sold",
-    badge:"Best Seller",
-    image:"https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=800&q=80",
-    images:[
-      "https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1562157873-818bc0726f68?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&w=800&q=80"
-    ]
-  },
-  {
-    name:"Anime Street Print Oversized",
-    brand:"TEE SHIRT",
-    category:"Anime",
-    price:320,
-    oldPrice:399,
-    stock:8,
-    sold:"64+ sold",
-    badge:"New",
-    image:"https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=800&q=80",
-    images:[
-      "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1523398002811-999ca8dec234?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80"
-    ]
-  }
-];
-const $ = (id) => document.getElementById(id);
-const readJSON = (k, f) => { try { const r = localStorage.getItem(k); return r ? JSON.parse(r) : f; } catch { return f; } };
-const writeJSON = (k, v) => localStorage.setItem(k, JSON.stringify(v));
-const money = (v) => "₱" + Number(v || 0).toLocaleString();
-const totalAmount = (items) => items.reduce((s, i) => s + Number(i.price) * Number(i.qty), 0) + (items.length ? 60 : 0);
-const escapeHtml = (v) => String(v ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
-function showNotice(text){ const el = $("notice"); if(!el) return; el.textContent = text; el.style.display = "block"; clearTimeout(window.__teeNoticeTimer); window.__teeNoticeTimer = setTimeout(() => el.style.display = "none", 2000); }
+import { db, firebaseReady } from "./firebase-config.js";
+import {
+  collection, addDoc, getDocs, onSnapshot, updateDoc, doc
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
+function $(id){ return document.getElementById(id); }
+const storage = getStorage();
+const CHAT_ID_KEY = "tee_shirt_firebase_chat_id";
+const CUSTOMER_INFO_KEY = "tee_shirt_firebase_customer_info";
+
+function showNotice(text){
+  const el = $("notice");
+  if(!el) return;
+  el.textContent = text;
+  el.style.display = "block";
+  clearTimeout(window.__noticeTimer);
+  window.__noticeTimer = setTimeout(() => el.style.display = "none", 2200);
+}
+function escapeHtml(value){
+  return String(value)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#39;");
+}
 function playNotificationBeep(){
   try{
     const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -96,888 +36,395 @@ function playNotificationBeep(){
     osc.type = "sine";
     osc.frequency.value = 880;
     gain.gain.value = 0.03;
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.12);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(); osc.stop(ctx.currentTime + 0.12);
   }catch{}
 }
-function getMode(){ const saved = readJSON(MODE_KEY, null); if(saved==="local"||saved==="firebase") return saved; return firebaseReady ? "firebase" : "local"; }
-function setMode(mode){ writeJSON(MODE_KEY, mode); }
-const getLocalProducts = () => readJSON(PRODUCTS_KEY, []);
-const setLocalProducts = (items) => writeJSON(PRODUCTS_KEY, items);
-const getLocalOrders = () => readJSON(ORDERS_KEY, []);
-const setLocalOrders = (items) => writeJSON(ORDERS_KEY, items);
-const getLocalHistory = () => readJSON(HISTORY_KEY, []);
-const setLocalHistory = (items) => writeJSON(HISTORY_KEY, items);
-const getLocalCustomers = () => readJSON(CUSTOMERS_KEY, []);
-const setLocalCustomers = (items) => writeJSON(CUSTOMERS_KEY, items);
-const getLocalMessages = () => readJSON(MESSAGES_KEY, []);
-const setLocalMessages = (items) => writeJSON(MESSAGES_KEY, items);
-function seedLocalIfEmpty(){ if(!getLocalProducts().length){ setLocalProducts(demoProducts.map((item, index) => ({ ...item, id: "p" + (index + 1) }))); } }
-function bindNoticeButtons(){ document.querySelectorAll(".js-notice").forEach(btn => btn.onclick = () => showNotice(btn.dataset.text || "Done")); }
-async function fetchFirebaseDocs(col, field=null){ const ref = collection(db, col); const q = field ? query(ref, orderBy(field, "desc")) : ref; const snap = await getDocs(q); return snap.docs.map(d => ({ id:d.id, ...d.data() })); }
-function storageSync(callback){ const h = () => callback(); window.addEventListener("storage", h); return () => window.removeEventListener("storage", h); }
-async function saveProduct(payload, docId){
-  if(getMode()==="firebase" && firebaseReady){
-    if(docId){ await updateDoc(doc(db, "products", docId), payload); return docId; }
-    const ref = await addDoc(collection(db, "products"), { ...payload, createdAt: serverTimestamp() }); return ref.id;
+async function compressImageFile(file){
+  const maxInputBytes = 2 * 1024 * 1024;
+  if(file.size > maxInputBytes) throw new Error("Image too large. Max 2MB.");
+  const bitmap = await createImageBitmap(file);
+  const maxSide = 1280;
+  const ratio = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+  const width = Math.max(1, Math.round(bitmap.width * ratio));
+  const height = Math.max(1, Math.round(bitmap.height * ratio));
+  const canvas = document.createElement("canvas");
+  canvas.width = width; canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  let quality = 0.72;
+  let blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", quality));
+  while(blob && blob.size > 280 * 1024 && quality > 0.42){
+    quality -= 0.08;
+    blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", quality));
   }
-  const items = getLocalProducts();
-  if(docId){ const idx = items.findIndex(x => x.id === docId); if(idx >= 0) items[idx] = { ...items[idx], ...payload, id: docId }; }
-  else items.unshift({ ...payload, id: String(Date.now()) });
-  setLocalProducts(items); return docId || items[0].id;
+  return blob;
 }
-async function deleteProductItem(docId){
-  if(getMode()==="firebase" && firebaseReady){ await deleteDoc(doc(db, "products", docId)); return; }
-  setLocalProducts(getLocalProducts().filter(x => x.id !== docId));
+async function preparePreviewURL(file){
+  const blob = await compressImageFile(file);
+  return URL.createObjectURL(blob);
 }
-async function seedProducts(){
-  if(getMode()==="firebase" && firebaseReady){
-    const current = await fetchFirebaseDocs("products", "createdAt");
-    if(current.length) throw new Error("Products already exist");
-    const batch = writeBatch(db);
-    demoProducts.forEach(item => { const ref = doc(collection(db, "products")); batch.set(ref, { ...item, createdAt: serverTimestamp() }); });
-    await batch.commit(); return;
-  }
-  if(getLocalProducts().length) throw new Error("Products already exist");
-  seedLocalIfEmpty();
+async function uploadChatImage(file){
+  if(!firebaseReady) throw new Error("Firebase is not ready.");
+  const blob = await compressImageFile(file);
+  const path = "chatImages/" + Date.now() + "_" + Math.random().toString(36).slice(2) + ".jpg";
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, blob, { contentType: "image/jpeg" });
+  return await getDownloadURL(storageRef);
 }
-async function saveCustomerProfile(account){
-  if(getMode()==="firebase" && firebaseReady && account.phone){ await setDoc(doc(db, "customers_public", account.phone), { ...account, updatedAt: serverTimestamp() }, { merge:true }); }
-  const customers = getLocalCustomers(); const idx = customers.findIndex(c => c.phone === account.phone && account.phone); if(idx >= 0) customers[idx] = account; else customers.unshift(account); setLocalCustomers(customers);
+function setCustomerInfo(name, phone){
+  localStorage.setItem(CUSTOMER_INFO_KEY, JSON.stringify({name, phone}));
 }
-async function createOrder(cart, account){
-  if(getMode()==="firebase" && firebaseReady){
-    await runTransaction(db, async (transaction) => {
-      const liveItems = [];
-      for(const item of cart){
-        const ref = doc(db, "products", item.id); const snap = await transaction.get(ref);
-        if(!snap.exists()) throw new Error(item.name + " not found");
-        const data = snap.data(); const stock = Number(data.stock || 0);
-        if(stock < Number(item.qty)) throw new Error("Not enough stock for " + item.name);
-        transaction.update(ref, { stock: stock - Number(item.qty) });
-        liveItems.push({ name:data.name, qty:Number(item.qty), price:Number(data.price), productId:item.id, size:item.size || "M" });
-      }
-      const orderRef = doc(collection(db, "orders"));
-      transaction.set(orderRef, { customer:account, items:liveItems, total:totalAmount(liveItems), status:"Pending", createdAt:serverTimestamp() });
-    });
+function getCustomerInfo(){
+  try{ return JSON.parse(localStorage.getItem(CUSTOMER_INFO_KEY) || "{}"); }catch{ return {}; }
+}
+function setCurrentChatId(id){ localStorage.setItem(CHAT_ID_KEY, id); }
+function getCurrentChatId(){ return localStorage.getItem(CHAT_ID_KEY) || ""; }
+
+function renderPreview(areaId, inputId, stateKey){
+  const area = $(areaId);
+  if(!area) return;
+  const url = window[stateKey];
+  if(!url){
+    area.classList.add("hidden");
+    area.innerHTML = "";
     return;
   }
-  const products = getLocalProducts();
-  for(const item of cart){ const p = products.find(x => x.id === item.id); if(!p || Number(p.stock) < Number(item.qty)) throw new Error("Not enough stock for " + item.name); }
-  for(const item of cart){ const p = products.find(x => x.id === item.id); p.stock = Number(p.stock) - Number(item.qty); }
-  setLocalProducts(products);
-  const orders = getLocalOrders();
-  orders.unshift({ id:"ORD-" + Date.now(), customer:account, items:cart.map(i => ({ name:i.name, qty:Number(i.qty), price:Number(i.price), size:i.size || "M" })), total:totalAmount(cart), status:"Pending", createdAt:new Date().toISOString() });
-  setLocalOrders(orders);
-}
-async function updateOrderStatus(orderId, newStatus, activeOrdersCache=[]){
-  if(getMode()==="firebase" && firebaseReady){
-    const order = activeOrdersCache.find(x => x.id === orderId); if(!order) return;
-    if(newStatus === "Completed"){ await setDoc(doc(db, "order_history", orderId), { ...order, status:"Completed", movedAt:serverTimestamp() }); await deleteDoc(doc(db, "orders", orderId)); return; }
-    await updateDoc(doc(db, "orders", orderId), { status:newStatus }); return;
+  area.classList.remove("hidden");
+  area.innerHTML = '<div class="image-preview-card"><img src="' + url + '" alt="Selected image"><button class="image-preview-remove" type="button" id="' + areaId + '_remove">✕</button></div>';
+  const btn = $(areaId + "_remove");
+  if(btn){
+    btn.onclick = () => {
+      window[stateKey] = "";
+      const input = $(inputId);
+      if(input) input.value = "";
+      renderPreview(areaId, inputId, stateKey);
+    };
   }
-  const orders = getLocalOrders(); const idx = orders.findIndex(o => o.id === orderId); if(idx < 0) return;
-  if(newStatus === "Completed"){ const history = getLocalHistory(); history.unshift({ ...orders[idx], status:"Completed", movedAt:new Date().toISOString() }); setLocalHistory(history); orders.splice(idx,1); setLocalOrders(orders); return; }
-  orders[idx].status = newStatus; setLocalOrders(orders);
 }
-async function moveOrderToHistory(orderId, activeOrdersCache=[]){
-  if(getMode()==="firebase" && firebaseReady){
-    const order = activeOrdersCache.find(x => x.id === orderId); if(!order) return;
-    await setDoc(doc(db, "order_history", orderId), { ...order, status:order.status || "Removed", movedAt:serverTimestamp() }); await deleteDoc(doc(db, "orders", orderId)); return;
+function threadHTML(thread, otherLabel, seenCustomer, seenAdmin, typingWho){
+  if(!thread.length){
+    return '<div class="chat-empty">No messages yet. Start the conversation.</div>';
   }
-  const orders = getLocalOrders(); const idx = orders.findIndex(o => o.id === orderId); if(idx < 0) return;
-  const history = getLocalHistory(); history.unshift({ ...orders[idx], status:orders[idx].status || "Removed", movedAt:new Date().toISOString() }); setLocalHistory(history); orders.splice(idx,1); setLocalOrders(orders);
-}
-function subscribeProducts(callback){
-  if(getMode()==="firebase" && firebaseReady){
-    return onSnapshot(query(collection(db, "products"), orderBy("createdAt", "desc")), (snapshot) => callback(snapshot.docs.map(d => ({ id:d.id, ...d.data() })), "firebase"), () => { seedLocalIfEmpty(); callback(getLocalProducts(), "local"); });
+  let html = "";
+  thread.forEach((item, idx) => {
+    const who = item.sender === "admin" ? "admin" : "customer";
+    const avatar = who === "admin" ? "🧑‍💼" : "🧑";
+    const label = who === "admin" ? "Admin" : otherLabel;
+    const isLast = idx === thread.length - 1;
+    html += '<div class="chat-row ' + who + '"><div class="chat-avatar">' + avatar + '</div><div class="chat-bubble-wrap"><div class="chat-bubble">' +
+      (item.text ? '<div>' + escapeHtml(item.text) + '</div>' : '') +
+      (item.image ? '<img class="chat-image" src="' + item.image + '" alt="Chat image">' : '') +
+      '<span class="chat-meta">' + label + ' • ' + escapeHtml(String(item.at || "").replace("T"," ").slice(0,16)) + '</span>' +
+      ((who === "admin" && isLast && seenCustomer) ? '<span class="chat-status">Seen by customer</span>' : '') +
+      ((who === "customer" && isLast && seenAdmin) ? '<span class="chat-status">Seen by admin</span>' : '') +
+      '</div></div></div>';
+  });
+  if(typingWho === "admin"){
+    html += '<div class="chat-row admin"><div class="chat-avatar">🧑‍💼</div><div class="chat-bubble-wrap"><div class="typing-pill">Admin is typing <span class="typing-dots"><span></span><span></span><span></span></span></div></div></div>';
   }
-  seedLocalIfEmpty(); callback(getLocalProducts(), "local"); return storageSync(() => callback(getLocalProducts(), "local"));
-}
-function subscribeOrders(callback){
-  if(getMode()==="firebase" && firebaseReady){
-    return onSnapshot(query(collection(db, "orders"), orderBy("createdAt", "desc")), async (snapshot) => {
-      let history = []; try { history = await fetchFirebaseDocs("order_history", "movedAt"); } catch {}
-      callback(snapshot.docs.map(d => ({ id:d.id, ...d.data() })), history, "firebase");
-    }, () => callback(getLocalOrders(), getLocalHistory(), "local"));
+  if(typingWho === "customer"){
+    html += '<div class="chat-row customer"><div class="chat-bubble-wrap"><div class="typing-pill">Customer is typing <span class="typing-dots"><span></span><span></span><span></span></span></div></div><div class="chat-avatar">🧑</div></div>';
   }
-  callback(getLocalOrders(), getLocalHistory(), "local"); return storageSync(() => callback(getLocalOrders(), getLocalHistory(), "local"));
-}
-function subscribeCustomers(callback){
-  if(getMode()==="firebase" && firebaseReady){
-    return onSnapshot(query(collection(db, "customers_public"), orderBy("updatedAt", "desc")), (snapshot) => callback(snapshot.docs.map(d => ({ id:d.id, ...d.data() })), "firebase"), () => callback(getLocalCustomers(), "local"));
-  }
-  callback(getLocalCustomers(), "local"); return storageSync(() => callback(getLocalCustomers(), "local"));
-}
-function isAdminEmail(email){
-  return ADMIN_EMAILS.map(x => x.toLowerCase()).includes(String(email || "").toLowerCase());
+  return html;
 }
 
-function requireAdminGuard(){
-  if(!firebaseReady || !auth){
-    showNotice("Firebase Auth is not ready");
+let latestMessages = [];
+let lastAdminCount = 0;
+
+function updateInboxBadge(conversation){
+  const badge = $("inboxBadge");
+  if(!badge) return;
+  if(conversation && conversation.unreadCustomer){
+    badge.classList.remove("hidden");
+    badge.textContent = "1";
+  }else{
+    badge.classList.add("hidden");
+  }
+}
+async function findCustomerConversation(){
+  const info = getCustomerInfo();
+  const chatId = getCurrentChatId();
+  if(chatId){
+    const found = latestMessages.find(m => m.id === chatId);
+    if(found) return found;
+  }
+  if(info.phone){
+    const byPhone = latestMessages
+      .filter(m => m.phone === info.phone)
+      .sort((a,b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")))[0];
+    if(byPhone){
+      setCurrentChatId(byPhone.id);
+      return byPhone;
+    }
+  }
+  return null;
+}
+async function markCustomerSeen(conversation){
+  if(!conversation || !firebaseReady) return;
+  try{
+    await updateDoc(doc(db, "messages", conversation.id), {
+      unreadCustomer:false,
+      lastSeenByCustomer:new Date().toISOString()
+    });
+  }catch{}
+}
+async function markAdminSeen(conversation){
+  if(!conversation || !firebaseReady) return;
+  try{
+    await updateDoc(doc(db, "messages", conversation.id), {
+      unreadAdmin:false,
+      lastSeenByAdmin:new Date().toISOString()
+    });
+  }catch{}
+}
+async function setTyping(conversationId, side, isTyping){
+  if(!conversationId || !firebaseReady) return;
+  try{
+    await updateDoc(doc(db, "messages", conversationId), {
+      [side === "admin" ? "adminTyping" : "customerTyping"]: !!isTyping
+    });
+  }catch{}
+}
+
+function renderCustomerChat(){
+  const box = $("customerChatWindow");
+  if(!box) return;
+  const convo = latestMessages.find(m => m.id === getCurrentChatId()) || null;
+  if(!convo){
+    box.innerHTML = '<div class="chat-empty">Start your custom bulk order chat here.</div>';
+    updateInboxBadge(null);
     return;
   }
-  onAuthStateChanged(auth, (user) => {
-    if(!user || !isAdminEmail(user.email)){
-      window.location.href = "./admin-login.html";
-      return;
-    }
-    initAdmin();
+  box.innerHTML = threadHTML(convo.thread || [], "You", convo.lastSeenByCustomer, convo.lastSeenByAdmin, convo.adminTyping ? "admin" : "");
+  box.scrollTop = box.scrollHeight;
+  updateInboxBadge(convo);
+}
+function renderAdminConversationList(){
+  const list = $("messagesList");
+  if(!list) return;
+  if(!latestMessages.length){
+    list.innerHTML = '<div class="chat-empty">No conversations yet.</div>';
+    return;
+  }
+  const selected = getCurrentChatId();
+  list.innerHTML = latestMessages.map(item => {
+    const preview = item.latestMessage || item.message || "";
+    return '<div class="admin-conversation-item ' + (item.id === selected ? 'active ' : '') + (item.unreadAdmin ? 'unread' : '') + '" data-open-message="' + escapeHtml(item.id) + '"><div class="admin-conversation-name">' + escapeHtml(item.name || "-") + (item.unreadAdmin ? '<span class="unread-badge">NEW</span>' : '') + '</div><div class="small">' + escapeHtml(item.phone || "-") + '</div><div class="admin-conversation-preview">' + escapeHtml(preview || "Image") + '</div></div>';
+  }).join("");
+  list.querySelectorAll("[data-open-message]").forEach(el => {
+    el.onclick = async () => {
+      setCurrentChatId(el.dataset.openMessage);
+      const convo = latestMessages.find(m => m.id === el.dataset.openMessage);
+      await markAdminSeen(convo);
+      renderAdminChat();
+      renderAdminConversationList();
+    };
   });
 }
-
-function initAdminLogin(){
-  const form = $("adminLoginForm");
-  form.onsubmit = async (e) => {
-    e.preventDefault();
-    if(!firebaseReady || !auth){
-      showNotice("Firebase Auth is not ready");
-      return;
-    }
-    const email = $("loginEmail").value.trim();
-    const password = $("loginPassword").value;
-    try {
-      const cred = await signInWithEmailAndPassword(auth, email, password);
-      if(!isAdminEmail(cred.user.email)){
-        await signOut(auth);
-        showNotice("This account is not allowed as admin");
-        return;
-      }
-      window.location.href = "./admin.html";
-    } catch (error) {
-      showNotice("Login failed. Check email/password.");
-    }
-  };
+function renderAdminChat(){
+  const header = $("adminConversationHeader");
+  const box = $("adminChatWindow");
+  const typing = $("typingStatus");
+  const statusSel = $("adminMessageStatus");
+  if(!box || !header) return;
+  const convo = latestMessages.find(m => m.id === getCurrentChatId()) || null;
+  if(!convo){
+    header.textContent = "Select a conversation";
+    if(typing) typing.textContent = "No one is typing";
+    box.innerHTML = '<div class="chat-empty">No conversation selected.</div>';
+    return;
+  }
+  header.textContent = (convo.name || "-") + " • " + (convo.phone || "-");
+  if(typing) typing.textContent = convo.customerTyping ? "Customer is typing..." : "No one is typing";
+  if(statusSel) statusSel.value = convo.status || "New";
+  box.innerHTML = threadHTML(convo.thread || [], convo.name || "Customer", convo.lastSeenByCustomer, convo.lastSeenByAdmin, convo.customerTyping ? "customer" : "");
+  box.scrollTop = box.scrollHeight;
 }
 
+async function sendCustomerMessage(){
+  const name = ($("inq_name")?.value || "").trim();
+  const phone = ($("inq_phone")?.value || "").trim();
+  const text = ($("inq_message")?.value || "").trim();
+  const file = $("customerImageInput")?.files?.[0] || null;
+  if(!name || !phone || (!text && !file)){
+    showNotice("Type a message or choose an image");
+    return;
+  }
+  if(!firebaseReady){
+    showNotice("Firebase is not ready");
+    return;
+  }
+  try{
+    setCustomerInfo(name, phone);
+    let convo = await findCustomerConversation();
+    let imageUrl = "";
+    if(file) imageUrl = await uploadChatImage(file);
+    const now = new Date().toISOString();
 
-async function saveInquiryMessage(payload){
-  const now = new Date().toISOString();
-  const starter = { sender:"customer", text: payload.message, at: now };
+    if(convo){
+      const thread = Array.isArray(convo.thread) ? convo.thread.slice() : [];
+      thread.push({ sender:"customer", text, image:imageUrl, at:now });
+      await updateDoc(doc(db, "messages", convo.id), {
+        name, phone,
+        thread,
+        latestMessage: text || "Image",
+        message: text || convo.message || "",
+        unreadAdmin:true,
+        unreadCustomer:false,
+        customerTyping:false,
+        status:"New",
+        updatedAt: now
+      });
+    }else{
+      const refDoc = await addDoc(collection(db, "messages"), {
+        name, phone,
+        message: text || "",
+        latestMessage: text || "Image",
+        reply:"",
+        thread:[{ sender:"customer", text, image:imageUrl, at:now }],
+        unreadAdmin:true,
+        unreadCustomer:false,
+        customerTyping:false,
+        adminTyping:false,
+        lastSeenByCustomer:"",
+        lastSeenByAdmin:"",
+        status:"New",
+        createdAt: now,
+        updatedAt: now
+      });
+      setCurrentChatId(refDoc.id);
+    }
 
-  if(getMode()==="firebase" && firebaseReady){
-    await addDoc(collection(db, "messages"), {
-      name: payload.name,
-      phone: payload.phone,
-      message: payload.message,
-      latestMessage: payload.message,
-      status:"New",
-      reply:"",
-      thread:[starter],
-      createdAt: now,
+    $("inq_message").value = "";
+    if($("customerImageInput")) $("customerImageInput").value = "";
+    window.__customerPreview = "";
+    renderPreview("customerPreviewArea","customerImageInput","__customerPreview");
+    showNotice("Message sent");
+  }catch(err){
+    showNotice(err?.message || "Failed to send message");
+  }
+}
+async function sendAdminMessage(){
+  const convo = latestMessages.find(m => m.id === getCurrentChatId()) || null;
+  const text = ($("adminReplyText")?.value || "").trim();
+  const file = $("adminImageInput")?.files?.[0] || null;
+  if(!convo){
+    showNotice("Select a conversation first");
+    return;
+  }
+  if(!text && !file){
+    showNotice("Type a reply or choose an image");
+    return;
+  }
+  try{
+    let imageUrl = "";
+    if(file) imageUrl = await uploadChatImage(file);
+    const now = new Date().toISOString();
+    const thread = Array.isArray(convo.thread) ? convo.thread.slice() : [];
+    thread.push({ sender:"admin", text, image:imageUrl, at:now });
+    await updateDoc(doc(db, "messages", convo.id), {
+      thread,
+      latestMessage: text || "Image",
+      reply: text || convo.reply || "",
+      unreadCustomer:true,
+      unreadAdmin:false,
+      adminTyping:false,
+      status:"Replied",
       updatedAt: now
     });
-    return;
+    $("adminReplyText").value = "";
+    if($("adminImageInput")) $("adminImageInput").value = "";
+    window.__adminPreview = "";
+    renderPreview("adminPreviewArea","adminImageInput","__adminPreview");
+    showNotice("Reply sent");
+  }catch(err){
+    showNotice(err?.message || "Reply failed");
   }
+}
 
-  const items = getLocalMessages();
-  items.unshift({
-    id:"MSG-" + Date.now(),
-    name: payload.name,
-    phone: payload.phone,
-    message: payload.message,
-    latestMessage: payload.message,
-    status:"New",
-    reply:"",
-    thread:[starter],
-    createdAt: now,
-    updatedAt: now
+function subscribeRealtime(){
+  if(!firebaseReady) return;
+  onSnapshot(collection(db, "messages"), (snapshot) => {
+    latestMessages = snapshot.docs.map(d => ({ id:d.id, ...d.data() }))
+      .sort((a,b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")));
+
+    if(document.body.dataset.page === "admin"){
+      if(latestMessages.length > lastAdminCount && lastAdminCount !== 0) playNotificationBeep();
+      lastAdminCount = latestMessages.length;
+      renderAdminConversationList();
+      renderAdminChat();
+    }else{
+      findCustomerConversation().then(async convo => {
+        if(convo){
+          setCurrentChatId(convo.id);
+          renderCustomerChat();
+          if(convo.unreadCustomer) await markCustomerSeen(convo);
+        }else{
+          renderCustomerChat();
+        }
+      });
+    }
   });
-  setLocalMessages(items);
 }
-
-async function updateMessage(messageId, updates){
-  if(getMode()==="firebase" && firebaseReady){
-    await updateDoc(doc(db, "messages", messageId), updates);
-    return;
-  }
-  const items = getLocalMessages();
-  const idx = items.findIndex(x => x.id === messageId);
-  if(idx >= 0){
-    items[idx] = { ...items[idx], ...updates };
-    setLocalMessages(items);
-  }
-}
-
-function subscribeMessages(callback){
-  const sortMessages = (arr) => arr.slice().sort((a,b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")));
-  if(getMode()==="firebase" && firebaseReady){
-    return onSnapshot(collection(db, "messages"), (snapshot) => {
-      callback(sortMessages(snapshot.docs.map(d => ({ id:d.id, ...d.data() }))), "firebase");
-    }, () => callback(sortMessages(getLocalMessages()), "local"));
-  }
-  callback(sortMessages(getLocalMessages()), "local");
-  return storageSync(() => callback(sortMessages(getLocalMessages()), "local"));
-}
-
-
-if(document.getElementById("adminLoginForm")) initAdminLogin();
-else if(page === "shop") initShop();
-else if(page === "admin") requireAdminGuard();
-
-
 
 function initShop(){
-  bindNoticeButtons();
-
-  let currentCategory = "All";
-  let products = [];
-  let cart = readJSON(CART_KEY, []);
-  let account = readJSON(ACCOUNT_KEY, {name:"", phone:"", email:"", address:""});
-  let selectedProduct = null;
-  let selectedSize = null;
-  let detailQty = 1;
-
-  const chipsEl = $("chips");
-  const gridEl = $("productGrid");
-  const sourceLabel = $("sourceLabel");
-  const searchInput = $("searchInput");
-  const drawer = $("drawer");
-  const drawerTitle = $("drawerTitle");
-  const cartView = $("cartView");
-  const accountView = $("accountView");
-  const productPageModal = $("productPageModal");
-
-  function renderChips(){
-    chipsEl.innerHTML = categories.map(cat => `<button class="chip ${cat===currentCategory?"active":""}" data-cat="${cat}">${cat}</button>`).join("");
-    chipsEl.querySelectorAll(".chip").forEach(btn => {
-      btn.onclick = () => {
-        currentCategory = btn.dataset.cat;
-        renderChips();
-        renderProducts();
-      };
-    });
-  }
-
-  function renderProducts(){
-    const q = (searchInput.value || "").trim().toLowerCase();
-    const filtered = products.filter(p => {
-      const categoryOk = currentCategory === "All" || p.category === currentCategory;
-      const text = `${p.brand} ${p.name} ${p.category}`.toLowerCase();
-      return categoryOk && (!q || text.includes(q));
-    });
-
-    if(!filtered.length){
-      gridEl.innerHTML = '<div style="grid-column:1/-1" class="empty">No products found.</div>';
-      return;
-    }
-
-    gridEl.innerHTML = filtered.map(p => `
-      <article class="card" data-view="${p.id}">
-        <div class="thumb" style="background-image:url('${p.image}')">
-          <div class="badge">${escapeHtml(p.badge || "New")}</div>
-          <button class="fav js-notice" data-text="Wishlist feature can be added next">♡</button>
-        </div>
-        <div class="card-body">
-          <div class="brand">${escapeHtml(p.brand)}</div>
-          <div class="name">${escapeHtml(p.name)}</div>
-          <div class="meta">
-            <span>${escapeHtml(p.category)}</span>
-            <span>${escapeHtml(p.sold || "0 sold")}</span>
-            <span>Stock: ${Number(p.stock || 0)}</span>
-          </div>
-          <div class="price-row">
-            <div>
-              <div class="price">${money(p.price)}</div>
-              <div class="old">${money(p.oldPrice)}</div>
-            </div>
-            <button class="mini-btn" data-quick-add="${p.id}" ${Number(p.stock || 0)<=0 ? "disabled" : ""}>Quick Add</button>
-          </div>
-        </div>
-      </article>
-    `).join("");
-
-    bindNoticeButtons();
-
-    gridEl.querySelectorAll("[data-view]").forEach(card => {
-      card.onclick = (e) => {
-        if(e.target.closest("[data-quick-add]") || e.target.closest(".fav")) return;
-        openProductPage(card.dataset.view);
-      };
-    });
-
-    gridEl.querySelectorAll("[data-quick-add]").forEach(btn => {
-      btn.onclick = (e) => {
-        e.stopPropagation();
-        quickAdd(btn.dataset.quickAdd);
-      };
-    });
-  }
-
-  function quickAdd(id){
-    const p = products.find(x => x.id === id);
-    if(!p || Number(p.stock || 0) <= 0){
-      showNotice("Product out of stock");
-      return;
-    }
-    const existing = cart.find(x => x.id === id && x.size === "M");
-    const currentQty = existing ? Number(existing.qty) : 0;
-    if(currentQty >= Number(p.stock || 0)){
-      showNotice("No more stock available");
-      return;
-    }
-    if(existing) existing.qty += 1;
-    else cart.push({ id:p.id, name:p.name, brand:p.brand, category:p.category, price:p.price, image:p.image, qty:1, size:"M" });
-    writeJSON(CART_KEY, cart);
-    renderCart();
-    showNotice("Added to cart");
-  }
-
-  function wireSizeButtons(){
-    document.querySelectorAll(".size-option").forEach(btn => {
-      btn.onclick = () => {
-        document.querySelectorAll(".size-option").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        selectedSize = btn.dataset.size;
-        $("selectedSizeLabel").textContent = "Selected: " + selectedSize;
-      };
-    });
-  }
-
-  function openProductPage(id){
-    const p = products.find(x => x.id === id);
-    if(!p) return;
-
-    selectedProduct = p;
-    selectedSize = null;
-    detailQty = 1;
-
-    const galleryImages = Array.isArray(p.images) && p.images.length ? p.images : [p.image, p.image, p.image];
-    $("productPageMainImage").src = galleryImages[0] || p.image;
-    $("productPageBadge").textContent = p.badge || "New";
-    $("thumbImg1").src = galleryImages[0] || p.image;
-    $("thumbImg2").src = galleryImages[1] || galleryImages[0] || p.image;
-    $("thumbImg3").src = galleryImages[2] || galleryImages[0] || p.image;
-    $("productPageBrand").textContent = p.brand || "TEE SHIRT";
-    $("productPageName").textContent = p.name || "";
-    $("productPagePrice").textContent = money(p.price);
-    $("productPageOldPrice").textContent = money(p.oldPrice);
-    $("productPageCategory").textContent = p.category || "Category";
-    $("productPageSold").textContent = p.sold || "0 sold";
-    $("productPageStock").textContent = "Stock: " + Number(p.stock || 0);
-    $("productPageDescription").textContent =
-      `${p.name} is ideal for bulk custom orders, business uniforms, event shirts, team wear, and giveaways. Clean presentation, strong print-ready look, and budget-friendly value starting at just ₱250.`;
-
-    [$("thumbBtn1"), $("thumbBtn2"), $("thumbBtn3")].forEach((thumb, i) => {
-      if(!thumb) return;
-      thumb.classList.toggle("active", i === 0);
-      thumb.onclick = () => {
-        [$("thumbBtn1"), $("thumbBtn2"), $("thumbBtn3")].forEach(t => t && t.classList.remove("active"));
-        thumb.classList.add("active");
-        $("productPageMainImage").src = galleryImages[i] || galleryImages[0] || p.image;
-      };
-    });
-
-    document.querySelectorAll(".size-option").forEach(btn => btn.classList.remove("active"));
-    $("selectedSizeLabel").textContent = "No size selected";
-    $("detailQtyValue").textContent = String(detailQty);
-    updateDetailTotal();
-    wireSizeButtons();
-
-    productPageModal.classList.remove("hidden");
-    const productScroll = document.querySelector(".product-page-scroll");
-    if(productScroll) productScroll.scrollTop = 0;
-    bindNoticeButtons();
-  }
-
-  function updateDetailTotal(){
-    if(!selectedProduct){
-      $("detailTotalPrice").textContent = "₱0";
-      return;
-    }
-    $("detailTotalPrice").textContent = money(Number(selectedProduct.price || 0) * detailQty);
-  }
-
-  function closeProductPage(){
-    if(productPageModal) productPageModal.classList.add("hidden");
-  }
-
-  function addDetailToCart(){
-    if(!selectedProduct){
-      showNotice("No product selected");
-      return;
-    }
-    if(!selectedSize){
-      showNotice("Please select size");
-      return;
-    }
-    const stock = Number(selectedProduct.stock || 0);
-    if(stock <= 0){
-      showNotice("Product out of stock");
-      return;
-    }
-
-    const existing = cart.find(x => x.id === selectedProduct.id && x.size === selectedSize);
-    const currentQty = existing ? Number(existing.qty) : 0;
-    if(currentQty + detailQty > stock){
-      showNotice("Not enough stock available");
-      return;
-    }
-
-    if(existing) existing.qty += detailQty;
-    else cart.push({
-      id:selectedProduct.id,
-      name:selectedProduct.name,
-      brand:selectedProduct.brand,
-      category:selectedProduct.category,
-      price:selectedProduct.price,
-      image:selectedProduct.image,
-      qty:detailQty,
-      size:selectedSize
-    });
-
-    writeJSON(CART_KEY, cart);
-    renderCart();
-    closeProductPage();
-    showNotice(`Added ${detailQty} item(s) - Size ${selectedSize}`);
-  }
-
-  function changeCartQtyByKey(id, size, delta){
-    const live = products.find(x => x.id === id);
-    const cartItem = cart.find(x => x.id === id && x.size === size);
-    if(!cartItem || !live) return;
-
-    const next = Number(cartItem.qty) + Number(delta);
-    if(next <= 0){
-      cart = cart.filter(x => !(x.id === id && x.size === size));
-    } else if(next > Number(live.stock || 0)){
-      showNotice("No more stock available");
-      return;
-    } else {
-      cartItem.qty = next;
-    }
-    writeJSON(CART_KEY, cart);
-    renderCart();
-  }
-
-  function removeItem(id, size){
-    cart = cart.filter(x => !(x.id === id && x.size === size));
-    writeJSON(CART_KEY, cart);
-    renderCart();
-    showNotice("Item removed");
-  }
-
-  function renderCart(){
-    const subtotal = cart.reduce((sum, item) => sum + Number(item.price) * Number(item.qty), 0);
-    const shipping = cart.length ? 60 : 0;
-    const total = subtotal + shipping;
-
-    if(!cart.length){
-      cartView.innerHTML = '<div class="empty">Your cart is empty.</div>';
-      return;
-    }
-
-    cartView.innerHTML = `
-      ${cart.map(item => `
-        <div class="cart-item">
-          <div class="cart-thumb" style="background-image:url('${item.image}')"></div>
-          <div>
-            <div style="font-weight:800">${escapeHtml(item.name)}</div>
-            <div class="small">${escapeHtml(item.brand)} • ${escapeHtml(item.category)} • Size: ${escapeHtml(item.size || "M")}</div>
-            <div class="qty">
-              <button data-minus="${item.id}" data-size="${escapeHtml(item.size || "M")}">−</button>
-              <strong>${item.qty}</strong>
-              <button data-plus="${item.id}" data-size="${escapeHtml(item.size || "M")}">+</button>
-            </div>
-          </div>
-          <div style="text-align:right">
-            <div style="font-weight:900">${money(item.price * item.qty)}</div>
-            <button class="icon-btn" style="margin-top:8px" data-remove="${item.id}" data-size="${escapeHtml(item.size || "M")}">🗑️</button>
-          </div>
-        </div>
-      `).join("")}
-      <div style="height:14px"></div>
-      <div class="summary">
-        <div class="summary-row"><span>Subtotal</span><strong>${money(subtotal)}</strong></div>
-        <div class="summary-row"><span>Shipping</span><strong>${money(shipping)}</strong></div>
-        <div class="summary-row" style="font-size:18px"><span>Total</span><strong>${money(total)}</strong></div>
-        <button class="btn dark" style="width:100%;margin-top:10px" id="checkoutBtn">Checkout</button>
-      </div>
-    `;
-
-    cartView.querySelectorAll("[data-minus]").forEach(btn => btn.onclick = () => changeCartQtyByKey(btn.dataset.minus, btn.dataset.size, -1));
-    cartView.querySelectorAll("[data-plus]").forEach(btn => btn.onclick = () => changeCartQtyByKey(btn.dataset.plus, btn.dataset.size, 1));
-    cartView.querySelectorAll("[data-remove]").forEach(btn => btn.onclick = () => removeItem(btn.dataset.remove, btn.dataset.size));
-    $("checkoutBtn").onclick = checkout;
-  }
-
-  function renderAccount(){
-    accountView.innerHTML = `
-      <div class="account-box">
-        <div class="small">This profile is saved in your browser now, and also syncs online in Firebase mode.</div>
-        <div class="two">
-          <div class="field">
-            <label>Name</label>
-            <input id="acc_name" value="${escapeHtml(account.name)}" placeholder="Your full name">
-          </div>
-          <div class="field">
-            <label>Phone</label>
-            <input id="acc_phone" value="${escapeHtml(account.phone)}" placeholder="09xxxxxxxxxx">
-          </div>
-        </div>
-        <div class="field">
-          <label>Email</label>
-          <input id="acc_email" value="${escapeHtml(account.email)}" placeholder="you@example.com">
-        </div>
-        <div class="field">
-          <label>Address</label>
-          <input id="acc_address" value="${escapeHtml(account.address)}" placeholder="Complete address">
-        </div>
-        <div class="account-actions">
-          <button class="btn dark full-btn" id="saveAccountBtn">Save Profile</button>
-        </div>
-      </div>
-    `;
-    $("saveAccountBtn").onclick = saveAccount;
-  }
-
-  async function saveAccount(){
-    account = {
-      name:$("acc_name").value.trim(),
-      phone:$("acc_phone").value.trim(),
-      email:$("acc_email").value.trim(),
-      address:$("acc_address").value.trim()
-    };
-    writeJSON(ACCOUNT_KEY, account);
-    try {
-      await saveCustomerProfile(account);
-      closeDrawer();
-      showNotice("Profile saved");
-    } catch {
-      closeDrawer();
-      showNotice("Saved locally");
-    }
-  }
-
-  async function checkout(){
-    if(!account.name || !account.phone){
-      openDrawer("account");
-      showNotice("Please fill your account details first");
-      return;
-    }
-    if(!cart.length){
-      showNotice("Your cart is empty");
-      return;
-    }
-    try {
-      await saveCustomerProfile(account);
-      await createOrder(cart, account);
-      cart = [];
-      writeJSON(CART_KEY, cart);
-      renderCart();
-      closeDrawer();
-      showNotice("Order placed");
-    } catch (error) {
-      showNotice(error.message || "Checkout failed");
-    }
-  }
-
-  function openDrawer(type){
-    drawer.classList.add("show");
-    cartView.classList.add("hidden");
-    accountView.classList.add("hidden");
-    if(type==="cart"){
-      drawerTitle.textContent="My Cart";
-      cartView.classList.remove("hidden");
-      renderCart();
-    } else {
-      drawerTitle.textContent="My Account";
-      accountView.classList.remove("hidden");
-      renderAccount();
-    }
-  }
-
-  function closeDrawer(){ drawer.classList.remove("show"); }
-
-
-  function renderCustomerChat(conversation){
-    const box = $("customerChatWindow");
-    if(!box) return;
-    const thread = conversation?.thread || [];
-    if(!thread.length){
-      box.innerHTML = '<div class="chat-empty">Start your custom bulk order chat here.</div>';
-      return;
-    }
-    box.innerHTML = thread.map(item => `
-      <div class="chat-bubble ${item.sender === "admin" ? "admin" : "customer"}">
-        ${escapeHtml(item.text || "")}
-        <span class="chat-meta">${item.sender === "admin" ? "Admin" : "You"} • ${escapeHtml(String(item.at || "").replace("T"," ").slice(0,16))}</span>
-      </div>
-    `).join("");
-    box.scrollTop = box.scrollHeight;
-  }
-
-  async function loadCustomerConversation(){
-    const phone = account.phone || ($("inq_phone")?.value || "").trim();
-    const chatId = localStorage.getItem(CHAT_ID_KEY);
-    let messages = [];
-
-    if(getMode()==="firebase" && firebaseReady){
-      const snap = await getDocs(collection(db, "messages"));
-      messages = snap.docs.map(d => ({ id:d.id, ...d.data() }));
-    }else{
-      messages = getLocalMessages();
-    }
-
-    let conversation = null;
-    if(chatId) conversation = messages.find(m => m.id === chatId) || null;
-    if(!conversation && phone) conversation = messages.filter(m => m.phone === phone).sort((a,b)=>String(b.updatedAt||"").localeCompare(String(a.updatedAt||"")))[0] || null;
-    if(conversation) localStorage.setItem(CHAT_ID_KEY, conversation.id);
-    renderCustomerChat(conversation);
-    return conversation;
-  }
-
-  function openInquiry(){
-    const modal = $("inquiryModal");
-    if(!modal) return;
-    $("inq_name").value = account.name || "";
-    $("inq_phone").value = account.phone || "";
-    $("inq_message").value = "";
-    modal.classList.remove("hidden");
-    loadCustomerConversation();
-  }
-
-  function closeInquiry(){
-    const modal = $("inquiryModal");
-    if(modal) modal.classList.add("hidden");
-  }
-
-  async function sendInquiry(){
-    const name = ($("inq_name")?.value || "").trim();
-    const phone = ($("inq_phone")?.value || "").trim();
-    const message = ($("inq_message")?.value || "").trim();
-
-    if(!name || !phone || !message){
-      showNotice("Please complete the chat form");
-      return;
-    }
-
+  const info = getCustomerInfo();
+  if($("inq_name")) $("inq_name").value = info.name || "";
+  if($("inq_phone")) $("inq_phone").value = info.phone || "";
+  if($("openInboxBtn")) $("openInboxBtn").onclick = () => {
+    $("inquiryModal")?.classList.remove("hidden");
+    renderCustomerChat();
+  };
+  if($("openAccountBtn")) $("openAccountBtn").onclick = () => {
+    $("inquiryModal")?.classList.remove("hidden");
+    renderCustomerChat();
+  };
+  if($("closeInquiryBtn")) $("closeInquiryBtn").onclick = () => $("inquiryModal")?.classList.add("hidden");
+  if($("inquiryModal")) $("inquiryModal").onclick = (e) => { if(e.target.id === "inquiryModal") $("inquiryModal").classList.add("hidden"); };
+  if($("sendInquiryBtn")) $("sendInquiryBtn").onclick = sendCustomerMessage;
+  if($("customerImageInput")) $("customerImageInput").onchange = async () => {
+    const file = $("customerImageInput").files?.[0];
+    if(!file){ window.__customerPreview = ""; renderPreview("customerPreviewArea","customerImageInput","__customerPreview"); return; }
     try{
-      account = { ...account, name, phone };
-      writeJSON(ACCOUNT_KEY, account);
-
-      let current = await loadCustomerConversation();
-
-      if(current){
-        const now = new Date().toISOString();
-        const thread = Array.isArray(current.thread) ? current.thread.slice() : [];
-        thread.push({ sender:"customer", text: message, at: now });
-        await updateMessage(current.id, {
-          thread,
-          latestMessage: message,
-          message,
-          status:"New",
-          updatedAt: now
-        });
-      }else{
-        await saveInquiryMessage({ name, phone, message });
-      }
-
-      $("inq_message").value = "";
-      await loadCustomerConversation();
-      showNotice("Message sent to admin");
-    }catch{
-      showNotice("Failed to send message");
-    }
-  }
-
-
-  subscribeProducts((items, source) => {
-    products = items;
-    sourceLabel.textContent = source==="firebase" ? "Live from Firebase" : "Using local fallback";
-    renderProducts();
-    renderCart();
-  });
-
-  renderChips();
-  renderCart();
-  bindNoticeButtons();
-
-  $("searchBtn").onclick = renderProducts;
-  searchInput.oninput = renderProducts;
-  $("shopNowBtn").onclick = () => $("productsSection").scrollIntoView({behavior:"smooth"});
-  $("openAccountBtn").onclick = () => openInquiry();
-  $("openCartBtn").onclick = () => openDrawer("cart");
-
-  if($("openInboxBtn")){
-  $("openInboxBtn").onclick = () => openInquiry();
-}
-  
-  $("navCart").onclick = () => openDrawer("cart");
-  $("navAccount").onclick = () => openDrawer("account");
-  $("navCategory").onclick = () => $("productsSection").scrollIntoView({behavior:"smooth"});
-  $("navHome").onclick = () => window.scrollTo({top:0, behavior:"smooth"});
-  $("closeDrawerBtn").onclick = closeDrawer;
-  drawer.onclick = (e) => { if(e.target.id==="drawer") closeDrawer(); };
-
-  if($("closeProductPageBtn")) $("closeProductPageBtn").onclick = closeProductPage;
-  if(productPageModal) productPageModal.onclick = (e) => { if(e.target.id==="productPageModal") closeProductPage(); };
-  if($("detailQtyMinus")) $("detailQtyMinus").onclick = () => {
-    detailQty = Math.max(1, detailQty - 1);
-    $("detailQtyValue").textContent = String(detailQty);
-    updateDetailTotal();
+      window.__customerPreview = await preparePreviewURL(file);
+      renderPreview("customerPreviewArea","customerImageInput","__customerPreview");
+    }catch(err){ showNotice(err?.message || "Preview failed"); }
   };
-  if($("detailQtyPlus")) $("detailQtyPlus").onclick = () => {
-    if(selectedProduct && detailQty < Number(selectedProduct.stock || 0)){
-      detailQty += 1;
-      $("detailQtyValue").textContent = String(detailQty);
-      updateDetailTotal();
-    } else {
-      showNotice("No more stock available");
-    }
+  if($("inq_message")) $("inq_message").oninput = async () => {
+    const convo = await findCustomerConversation();
+    await setTyping(convo?.id, "customer", !!$("inq_message").value.trim());
   };
-  if($("productPageAddToCartBtn")) $("productPageAddToCartBtn").onclick = addDetailToCart;
-  if($("closeInquiryBtn")) $("closeInquiryBtn").onclick = closeInquiry;
-  if($("sendInquiryBtn")) $("sendInquiryBtn").onclick = sendInquiry;
-  if($("inquiryModal")) $("inquiryModal").onclick = (e) => { if(e.target.id === "inquiryModal") closeInquiry(); };
-  window.__customerChatPoll && clearInterval(window.__customerChatPoll);
-  window.__customerChatPoll = setInterval(() => {
-    const modal = $("inquiryModal");
-    if(modal && !modal.classList.contains("hidden")) loadCustomerConversation();
-  }, 4000);
+  renderCustomerChat();
 }
-
-
 function initAdmin(){
-  bindNoticeButtons(); const form = $("productForm"), table = $("adminProductTable"); let activeOrdersCache = [];
-  const topActions = document.querySelector(".top-actions-wrap");
-  if(topActions && !document.getElementById("logoutAdminBtn")){
-    const logoutBtn = document.createElement("button");
-    logoutBtn.id = "logoutAdminBtn";
-    logoutBtn.className = "btn dark";
-    logoutBtn.textContent = "Logout";
-    logoutBtn.onclick = async () => { try { await signOut(auth); } catch {} window.location.href = "./admin-login.html"; };
-    topActions.appendChild(logoutBtn);
-  }
-  function updateStats(items){ $("statProducts").textContent = items.length; $("statStock").textContent = items.reduce((a,b)=>a+Number(b.stock||0),0); $("statLow").textContent = items.filter(x=>Number(x.stock||0)<=10).length; $("statCategories").textContent = new Set(items.map(x=>x.category)).size; }
-  function clearForm(){ form.reset(); $("docId").value = ""; if($("image2")) $("image2").value=""; if($("image3")) $("image3").value=""; if($("image4")) $("image4").value=""; }
-  function fillForm(item){ $("docId").value=item.id; $("name").value=item.name||""; $("brand").value=item.brand||""; $("category").value=item.category||"Oversized"; $("price").value=item.price||0; $("oldPrice").value=item.oldPrice||0; $("stock").value=item.stock||0; $("sold").value=item.sold||""; $("badge").value=item.badge||""; $("image").value=item.image||""; $("image2").value=(item.images&&item.images[1])||""; $("image3").value=(item.images&&item.images[2])||""; $("image4").value=(item.images&&item.images[3])||""; window.scrollTo({top:0, behavior:"smooth"}); }
-  function renderProductsAdmin(items, source){ $("adminSourceLabel").textContent = source==="firebase" ? "Live from Firebase" : "Using local fallback"; updateStats(items); if(!items.length){ table.innerHTML = '<tr><td colspan="5" class="empty">No products found.</td></tr>'; return; } table.innerHTML = items.map(item => `<tr><td><div style="font-weight:800">${escapeHtml(item.name)}</div><div class="small">${escapeHtml(item.brand)}</div></td><td>${escapeHtml(item.category)}</td><td>${money(item.price)}</td><td>${Number(item.stock||0)}</td><td><div class="row-actions"><button class="btn ghost" data-edit="${item.id}">Edit</button><button class="btn dark" data-delete="${item.id}">Delete</button></div></td></tr>`).join(""); table.querySelectorAll("[data-edit]").forEach(btn => btn.onclick = () => { const item = items.find(x => x.id===btn.dataset.edit); if(item) fillForm(item); }); table.querySelectorAll("[data-delete]").forEach(btn => btn.onclick = async () => { try { await deleteProductItem(btn.dataset.delete); showNotice("Product deleted"); } catch { showNotice("Delete failed"); } }); }
-  function renderOrders(activeOrders, historyOrders){ activeOrdersCache = activeOrders.slice(); const tbody = $("ordersTable"), historyBody = $("historyTable"); if(!tbody || !historyBody) return; if(!activeOrders.length) tbody.innerHTML = '<tr><td colspan="6" class="empty">No active orders yet.</td></tr>'; else { tbody.innerHTML = activeOrders.map(order => `<tr><td>${escapeHtml(order.id||"-")}</td><td><div style="font-weight:800">${escapeHtml(order.customer?.name||"-")}</div><div class="small">${escapeHtml(order.customer?.phone||"")}</div></td><td>${money(order.total||0)}</td><td><select class="order-status-select" data-order-status="${escapeHtml(order.id||"")}"><option value="Pending" ${order.status==="Pending"?"selected":""}>Pending</option><option value="Preparing" ${order.status==="Preparing"?"selected":""}>Preparing</option><option value="Ready" ${order.status==="Ready"?"selected":""}>Ready</option><option value="Completed" ${order.status==="Completed"?"selected":""}>Completed</option></select></td><td>${(order.items||[]).map(i => `${escapeHtml(i.name)} x${Number(i.qty)}`).join("<br>")}</td><td><button class="btn ghost" data-archive-order="${escapeHtml(order.id||"")}">Move to History</button></td></tr>`).join(""); tbody.querySelectorAll("[data-order-status]").forEach(select => select.onchange = async function(){ try { await updateOrderStatus(this.dataset.orderStatus, this.value, activeOrdersCache); showNotice(this.value==="Completed" ? "Order moved to history" : "Order status updated"); } catch { showNotice("Status update failed"); } }); tbody.querySelectorAll("[data-archive-order]").forEach(btn => btn.onclick = async () => { try { await moveOrderToHistory(btn.dataset.archiveOrder, activeOrdersCache); showNotice("Order moved to history"); } catch { showNotice("Move failed"); } }); } if(!historyOrders.length) historyBody.innerHTML = '<tr><td colspan="5" class="empty">No order history yet.</td></tr>'; else historyBody.innerHTML = historyOrders.map(order => `<tr><td>${escapeHtml(order.id||"-")}</td><td><div style="font-weight:800">${escapeHtml(order.customer?.name||"-")}</div><div class="small">${escapeHtml(order.customer?.phone||"")}</div></td><td>${money(order.total||0)}</td><td>${escapeHtml(order.status||"Completed")}</td><td>${(order.items||[]).map(i => `${escapeHtml(i.name)} x${Number(i.qty)}`).join("<br>")}</td></tr>`).join(""); }
-
-  function renderMessages(messages){
-    const list = $("messagesList");
-    const header = $("adminConversationHeader");
-    const chat = $("adminChatWindow");
-    const replyText = $("adminReplyText");
-    const statusSel = $("adminMessageStatus");
-    const sendBtn = $("sendAdminReplyBtn");
-    if(!list || !header || !chat || !replyText || !statusSel || !sendBtn) return;
-
-    let selectedId = window.__adminSelectedMessageId;
-    if(!selectedId && messages.length) selectedId = messages[0].id;
-    const current = messages.find(m => m.id === selectedId) || messages[0] || null;
-    window.__adminSelectedMessageId = current?.id || null;
-
-    list.innerHTML = messages.length ? messages.map(item => {
-      const preview = item.latestMessage || item.message || "";
-      const isActive = item.id === window.__adminSelectedMessageId;
-      return `
-        <div class="admin-conversation-item ${isActive ? "active" : ""} ${item.status === "New" ? "unread" : ""}" data-open-message="${escapeHtml(item.id)}">
-          <div class="admin-conversation-name">${escapeHtml(item.name || "-")}${item.status === "New" ? '<span class="unread-badge">NEW</span>' : ''}</div>
-          <div class="small">${escapeHtml(item.phone || "-")}</div>
-          <div class="admin-conversation-preview">${escapeHtml(preview)}</div>
-        </div>
-      `;
-    }).join("") : '<div class="chat-empty">No conversations yet.</div>';
-
-    list.querySelectorAll("[data-open-message]").forEach(btn => {
-      btn.onclick = () => {
-        window.__adminSelectedMessageId = btn.dataset.openMessage;
-        renderMessages(messages);
-      };
-    });
-
-    if(!current){
-      header.textContent = "Select a conversation";
-      chat.innerHTML = '<div class="chat-empty">No conversation selected.</div>';
-      replyText.value = "";
-      return;
-    }
-
-    header.textContent = `${current.name || "-"} • ${current.phone || "-"}`;
-    statusSel.value = current.status || "New";
-    const thread = Array.isArray(current.thread) ? current.thread : [];
-    chat.innerHTML = thread.length ? thread.map(item => `
-      <div class="chat-bubble ${item.sender === "admin" ? "admin" : "customer"}">
-        ${escapeHtml(item.text || "")}
-        <span class="chat-meta">${item.sender === "admin" ? "Admin" : current.name || "Customer"} • ${escapeHtml(String(item.at || "").replace("T"," ").slice(0,16))}</span>
-      </div>
-    `).join("") : '<div class="chat-empty">No messages yet.</div>';
-    chat.scrollTop = chat.scrollHeight;
-
-    sendBtn.onclick = async () => {
-      const text = (replyText.value || "").trim();
-      const newStatus = statusSel.value || "Replied";
-      if(!text){
-        showNotice("Type a reply first");
-        return;
-      }
-      try{
-        const now = new Date().toISOString();
-        const newThread = thread.concat([{ sender:"admin", text, at: now }]);
-        await updateMessage(current.id, {
-          thread: newThread,
-          reply: text,
-          latestMessage: text,
-          status: newStatus === "New" ? "Replied" : newStatus,
-          updatedAt: now
-        });
-        replyText.value = "";
-        showNotice("Reply sent");
-      }catch{
-        showNotice("Reply failed");
-      }
-    };
-
-    statusSel.onchange = async () => {
-      try{
-        await updateMessage(current.id, { status: statusSel.value });
-        showNotice("Status updated");
-      }catch{
-        showNotice("Status update failed");
-      }
-    };
-  }
-
-
-  function renderCustomers(customers){ const tbody = $("customersTable"); if(!tbody) return; if(!customers.length){ tbody.innerHTML = '<tr><td colspan="4" class="empty">No customers yet.</td></tr>'; return; } tbody.innerHTML = customers.map(customer => `<tr><td>${escapeHtml(customer.name||"-")}</td><td>${escapeHtml(customer.phone||"-")}</td><td>${escapeHtml(customer.email||"-")}</td><td>${escapeHtml(customer.address||"-")}</td></tr>`).join(""); }
-  function switchTab(tabName){ document.querySelectorAll(".admin-tab-panel").forEach(panel => panel.classList.add("hidden")); const target = $("tab-"+tabName); if(target) target.classList.remove("hidden"); document.querySelectorAll(".admin-tab-btn").forEach(btn => btn.classList.toggle("active", btn.dataset.tab===tabName)); }
-
-  subscribeProducts((items, source) => renderProductsAdmin(items, source));
-  subscribeOrders((activeOrders, historyOrders) => renderOrders(activeOrders, historyOrders));
-  subscribeCustomers((customers) => renderCustomers(customers));
-  let __lastAdminMessageCount = 0;
-  subscribeMessages((messages) => {
-    if(messages.length > __lastAdminMessageCount && __lastAdminMessageCount !== 0) playNotificationBeep();
-    __lastAdminMessageCount = messages.length;
-    renderMessages(messages);
-  });
-  document.querySelectorAll(".admin-tab-btn").forEach(btn => btn.onclick = () => switchTab(btn.dataset.tab));
-  switchTab("products");
-  form.onsubmit = async (e) => { e.preventDefault(); const docId = $("docId").value.trim(); const payload = {
-      name:$("name").value.trim(),
-      brand:$("brand").value.trim(),
-      category:$("category").value,
-      price:Number($("price").value),
-      oldPrice:Number($("oldPrice").value),
-      stock:Number($("stock").value),
-      sold:$("sold").value.trim() || "0 sold",
-      badge:$("badge").value.trim() || "New",
-      image:$("image").value.trim(),
-      images:[
-        $("image").value.trim(),
-        $("image2") ? $("image2").value.trim() : "",
-        $("image3") ? $("image3").value.trim() : "",
-        $("image4") ? $("image4").value.trim() : ""
-      ].filter(Boolean)
-    }; try { await saveProduct(payload, docId || null); clearForm(); showNotice("Product saved"); } catch { showNotice("Save failed"); } };
-  $("clearFormBtn").onclick = clearForm;
-  $("seedBtn").onclick = async () => { try { await seedProducts(); showNotice("Demo products added"); } catch (error) { showNotice(error.message || "Seed failed"); } };
-  $("resetBtn").onclick = () => { localStorage.removeItem(PRODUCTS_KEY); localStorage.removeItem(CART_KEY); localStorage.removeItem(ACCOUNT_KEY); localStorage.removeItem(CUSTOMERS_KEY); localStorage.removeItem(ORDERS_KEY); localStorage.removeItem(HISTORY_KEY); seedLocalIfEmpty(); showNotice("Local data reset"); };
-  $("switchLocalBtn").onclick = () => { setMode("local"); showNotice("Switched to local mode"); setTimeout(() => location.reload(), 600); };
-  $("switchFirebaseBtn").onclick = () => { if(!firebaseReady){ showNotice("Firebase is not available here"); return; } setMode("firebase"); showNotice("Switched to Firebase mode"); setTimeout(() => location.reload(), 600); };
+  if($("sendAdminReplyBtn")) $("sendAdminReplyBtn").onclick = sendAdminMessage;
+  if($("adminImageInput")) $("adminImageInput").onchange = async () => {
+    const file = $("adminImageInput").files?.[0];
+    if(!file){ window.__adminPreview = ""; renderPreview("adminPreviewArea","adminImageInput","__adminPreview"); return; }
+    try{
+      window.__adminPreview = await preparePreviewURL(file);
+      renderPreview("adminPreviewArea","adminImageInput","__adminPreview");
+    }catch(err){ showNotice(err?.message || "Preview failed"); }
+  };
+  if($("adminReplyText")) $("adminReplyText").oninput = async () => {
+    const convo = latestMessages.find(m => m.id === getCurrentChatId()) || null;
+    await setTyping(convo?.id, "admin", !!$("adminReplyText").value.trim());
+  };
+  if($("adminMessageStatus")) $("adminMessageStatus").onchange = async () => {
+    const convo = latestMessages.find(m => m.id === getCurrentChatId()) || null;
+    if(!convo) return;
+    try{
+      await updateDoc(doc(db, "messages", convo.id), { status: $("adminMessageStatus").value });
+      showNotice("Status updated");
+    }catch{ showNotice("Status update failed"); }
+  };
+  renderAdminConversationList();
+  renderAdminChat();
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+  subscribeRealtime();
+  if(document.body.dataset.page === "shop") initShop();
+  if(document.body.dataset.page === "admin") initAdmin();
+});
