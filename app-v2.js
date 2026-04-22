@@ -1,10 +1,8 @@
 import { db, auth, firebaseReady, ADMIN_EMAILS } from "./firebase-config.js";
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, onSnapshot, serverTimestamp, query, orderBy, runTransaction, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
 const page = document.body.dataset.page;
-const storage = getStorage();
 const PRODUCTS_KEY = "tee_shirt_products";
 const CART_KEY = "tee_shirt_cart";
 const ACCOUNT_KEY = "tee_shirt_account";
@@ -239,74 +237,13 @@ function initAdminLogin(){
 }
 
 
-
-async function compressImageFile(file){
-  const maxInputBytes = 2 * 1024 * 1024;
-  if(file.size > maxInputBytes) throw new Error("Image too large. Max 2MB.");
-  const bitmap = await createImageBitmap(file);
-  const maxSide = 1280;
-  const ratio = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-  const width = Math.max(1, Math.round(bitmap.width * ratio));
-  const height = Math.max(1, Math.round(bitmap.height * ratio));
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(bitmap, 0, 0, width, height);
-  let quality = 0.72;
-  let blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", quality));
-  while(blob && blob.size > 280 * 1024 && quality > 0.42){
-    quality -= 0.08;
-    blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", quality));
-  }
-  return blob;
-}
-
-async function uploadChatImage(file){
-  if(!file) return "";
-  if(getMode() !== "firebase" || !firebaseReady){
-    throw new Error("Image upload needs Firebase mode.");
-  }
-  const blob = await compressImageFile(file);
-  const storageRef = ref(storage, "chatImages/" + Date.now() + "_" + Math.random().toString(36).slice(2) + ".jpg");
-  await uploadBytes(storageRef, blob, { contentType: "image/jpeg" });
-  return await getDownloadURL(storageRef);
-}
-
-async function previewCompressedImage(file){
-  const blob = await compressImageFile(file);
-  return URL.createObjectURL(blob);
-}
-
-function renderImagePreview(areaId, inputId, stateKey){
-  const area = $(areaId);
-  if(!area) return;
-  const url = window[stateKey];
-  if(!url){
-    area.classList.add("hidden");
-    area.innerHTML = "";
-    return;
-  }
-  area.classList.remove("hidden");
-  area.innerHTML = `<div class="image-preview-card"><img src="${url}" alt="Selected image"><button class="image-preview-remove" type="button" id="${areaId}_remove">✕</button></div>`;
-  const btn = $(`${areaId}_remove`);
-  if(btn){
-    btn.onclick = () => {
-      window[stateKey] = "";
-      const input = $(inputId);
-      if(input) input.value = "";
-      renderImagePreview(areaId, inputId, stateKey);
-    };
-  }
-}
-
 async function saveInquiryMessage(payload){
   if(getMode()==="firebase" && firebaseReady){
-    await addDoc(collection(db, "messages"), { ...payload, status:"New", image: payload.image || "", createdAt:serverTimestamp() });
+    await addDoc(collection(db, "messages"), { ...payload, status:"New", createdAt:serverTimestamp() });
     return;
   }
   const items = getLocalMessages();
-  items.unshift({ id:"MSG-" + Date.now(), ...payload, status:"New", image: payload.image || "", createdAt:new Date().toISOString() });
+  items.unshift({ id:"MSG-" + Date.now(), ...payload, status:"New", createdAt:new Date().toISOString() });
   setLocalMessages(items);
 }
 
@@ -731,29 +668,21 @@ function initShop(){
     const name = ($("inq_name")?.value || "").trim();
     const phone = ($("inq_phone")?.value || "").trim();
     const message = ($("inq_message")?.value || "").trim();
-    const file = $("customerImageInput")?.files?.[0] || null;
 
-    if(!name || !phone || (!message && !file)){
+    if(!name || !phone || !message){
       showNotice("Please complete the inquiry form");
       return;
     }
 
     try{
-      let imageUrl = "";
-      if(file) imageUrl = await uploadChatImage(file);
-      await saveInquiryMessage({ name, phone, message, image: imageUrl });
+      await saveInquiryMessage({ name, phone, message });
       account = { ...account, name, phone };
       writeJSON(ACCOUNT_KEY, account);
-      if($("inq_message")) $("inq_message").value = "";
-      if($("customerImageInput")) $("customerImageInput").value = "";
-      window.__customerPreview = "";
-      renderImagePreview("customerPreviewArea", "customerImageInput", "__customerPreview");
       closeInquiry();
       showNotice("Message sent to admin");
-    }catch(error){
-      showNotice(error?.message || "Failed to send message");
+    }catch{
+      showNotice("Failed to send message");
     }
-  }
   }
 
 
@@ -773,7 +702,6 @@ function initShop(){
   $("shopNowBtn").onclick = () => $("productsSection").scrollIntoView({behavior:"smooth"});
   $("openAccountBtn").onclick = () => openInquiry();
   $("openCartBtn").onclick = () => openDrawer("cart");
-  if($("openInboxBtn")) $("openInboxBtn").onclick = () => openInquiry();
   $("navCart").onclick = () => openDrawer("cart");
   $("navAccount").onclick = () => openDrawer("account");
   $("navCategory").onclick = () => $("productsSection").scrollIntoView({behavior:"smooth"});
@@ -800,7 +728,6 @@ function initShop(){
   if($("productPageAddToCartBtn")) $("productPageAddToCartBtn").onclick = addDetailToCart;
   if($("closeInquiryBtn")) $("closeInquiryBtn").onclick = closeInquiry;
   if($("sendInquiryBtn")) $("sendInquiryBtn").onclick = sendInquiry;
-  if($("customerImageInput")) $("customerImageInput").onchange = async () => { const file = $("customerImageInput").files?.[0]; if(!file){ window.__customerPreview = ""; renderImagePreview("customerPreviewArea", "customerImageInput", "__customerPreview"); return; } try{ window.__customerPreview = await previewCompressedImage(file); renderImagePreview("customerPreviewArea", "customerImageInput", "__customerPreview"); }catch(error){ showNotice(error?.message || "Preview failed"); } };
   if($("inquiryModal")) $("inquiryModal").onclick = (e) => { if(e.target.id === "inquiryModal") closeInquiry(); };
 }
 
@@ -829,118 +756,30 @@ function initAdmin(){
       tbody.innerHTML = '<tr><td colspan="4" class="empty">No messages yet.</td></tr>';
       return;
     }
-    tbody.innerHTML = messages.map(item => {
-      const displayDate = item.createdAt?.seconds
-        ? new Date(item.createdAt.seconds * 1000).toLocaleString()
-        : (item.createdAt || "-");
-      return `
+    tbody.innerHTML = messages.map(item => `
       <tr>
         <td>
           <div style="font-weight:800">${escapeHtml(item.name || "-")}</div>
           <div class="small">${escapeHtml(item.phone || "-")}</div>
         </td>
-        <td style="min-width:260px">
-          <div style="margin-bottom:8px">${escapeHtml(item.message || "-")}</div>
-          ${item.image ? `<img class="chat-image" src="${item.image}" alt="Customer image" />` : ""}
-          ${item.reply ? `<div style="margin-top:10px;padding-top:10px;border-top:1px dashed #ddd"><strong>Admin Reply:</strong><br>${escapeHtml(item.reply)}</div>` : ""}
-          ${item.replyImage ? `<img class="chat-image" src="${item.replyImage}" alt="Reply image" />` : ""}
-        </td>
+        <td style="min-width:260px">${escapeHtml(item.message || "-")}</td>
         <td>
           <select class="order-status-select" data-message-status="${escapeHtml(item.id || "")}">
             <option value="New" ${item.status === "New" ? "selected" : ""}>New</option>
             <option value="Replied" ${item.status === "Replied" ? "selected" : ""}>Replied</option>
           </select>
-          <textarea class="admin-reply-box" data-message-reply="${escapeHtml(item.id || "")}" placeholder="Type admin reply here...">${escapeHtml(item.reply || "")}</textarea>
-          <input class="admin-reply-file" type="file" data-message-file="${escapeHtml(item.id || "")}" accept="image/*" />
         </td>
-        <td>${escapeHtml(String(displayDate).replace("T"," ").slice(0,19) || "-")}
-          <button class="btn dark admin-reply-save" style="width:100%;margin-top:8px" data-message-save="${escapeHtml(item.id || "")}">Save Reply</button>
-        </td>
-      </tr>`;
-    }).join("");
+        <td>${escapeHtml(String(item.createdAt?.seconds ? new Date(item.createdAt.seconds * 1000).toLocaleString() : (item.createdAt || "")).replace("T"," ").slice(0,19) || "-")}</td>
+      </tr>
+    `).join("");
 
     tbody.querySelectorAll("[data-message-status]").forEach(sel => {
       sel.onchange = async () => {
         try{
-          await updateMessage(sel.dataset.messageStatus, { status: sel.value });
+          await updateMessageStatus(sel.dataset.messageStatus, sel.value);
           showNotice("Message status updated");
         }catch{
           showNotice("Message status update failed");
-        }
-      };
-    });
-
-    tbody.querySelectorAll("[data-message-save]").forEach(btn => {
-      btn.onclick = async () => {
-        const id = btn.dataset.messageSave;
-        const box = tbody.querySelector(`[data-message-reply="${id}"]`);
-        const fileInput = tbody.querySelector(`[data-message-file="${id}"]`);
-        const reply = (box?.value || "").trim();
-        const file = fileInput?.files?.[0] || null;
-        try{
-          let imageUrl = "";
-          if(file) imageUrl = await uploadChatImage(file);
-          await updateMessage(id, { reply, replyImage: imageUrl, status: (reply || imageUrl) ? "Replied" : "New" });
-          showNotice("Reply saved");
-        }catch(error){
-          showNotice(error?.message || "Reply save failed");
-        }
-      };
-    });
-  }
-    tbody.innerHTML = messages.map(item => {
-      const displayDate = item.createdAt?.seconds
-        ? new Date(item.createdAt.seconds * 1000).toLocaleString()
-        : (item.createdAt || "-");
-      return `
-      <tr>
-        <td>
-          <div style="font-weight:800">${escapeHtml(item.name || "-")}</div>
-          <div class="small">${escapeHtml(item.phone || "-")}</div>
-        </td>
-        <td style="min-width:260px">
-          <div style="margin-bottom:8px">${escapeHtml(item.message || "-")}</div>
-          ${item.image ? `<img class="chat-image" src="${item.image}" alt="Customer image" />` : ""}
-        </td>
-        <td>
-          <select class="order-status-select" data-message-status="${escapeHtml(item.id || "")}">
-            <option value="New" ${item.status === "New" ? "selected" : ""}>New</option>
-            <option value="Replied" ${item.status === "Replied" ? "selected" : ""}>Replied</option>
-          </select>
-          <textarea class="admin-reply-box" data-message-reply="${escapeHtml(item.id || "")}" placeholder="Type admin reply here...">${escapeHtml(item.reply || "")}</textarea>
-          <input class="admin-reply-file" type="file" data-message-file="${escapeHtml(item.id || "")}" accept="image/*" />
-        </td>
-        <td>${escapeHtml(String(displayDate).replace("T"," ").slice(0,19) || "-")}
-          <button class="btn dark admin-reply-save" style="width:100%;margin-top:8px" data-message-save="${escapeHtml(item.id || "")}">Save Reply</button>
-        </td>
-      </tr>`;
-    }).join("");
-
-    tbody.querySelectorAll("[data-message-status]").forEach(sel => {
-      sel.onchange = async () => {
-        try{
-          await updateMessage(sel.dataset.messageStatus, { status: sel.value });
-          showNotice("Message status updated");
-        }catch{
-          showNotice("Message status update failed");
-        }
-      };
-    });
-
-    tbody.querySelectorAll("[data-message-save]").forEach(btn => {
-      btn.onclick = async () => {
-        const id = btn.dataset.messageSave;
-        const box = tbody.querySelector(`[data-message-reply="${id}"]`);
-        const fileInput = tbody.querySelector(`[data-message-file="${id}"]`);
-        const reply = (box?.value || "").trim();
-        const file = fileInput?.files?.[0] || null;
-        try{
-          let imageUrl = "";
-          if(file) imageUrl = await uploadChatImage(file);
-          await updateMessage(id, { reply, replyImage: imageUrl, status: (reply || imageUrl) ? "Replied" : "New" });
-          showNotice("Reply saved");
-        }catch(error){
-          showNotice(error?.message || "Reply save failed");
         }
       };
     });
