@@ -1,17 +1,30 @@
-TEE SHIRT - MESSAGES SYSTEM VERSION
+TEE SHIRT - FULL REBUILD STABLE VERSION
 
-Added:
-- customer inquiry modal for custom bulk orders
+This is the clean stable rebuild.
+
+Included:
+- customer page
+- admin login page
+- admin dashboard
+- product loading
+- customer account
+- cart
+- checkout flow
+- messages system
+- Start Custom Design popup
 - admin Messages tab
-- message status: New / Replied
-- Firebase and local fallback support
+- Firebase + local fallback support
 
-Customer flow:
-- click Start Custom Design
-- enter name, phone, and message
-- send inquiry to admin
+Recommended test order:
+1. Open customer page
+2. Check products load
+3. Click Start Custom Design
+4. Send a text-only message
+5. Log in to admin
+6. Open Messages tab
+7. Check the message appears
 
-Admin flow:
-- open Messages tab
-- read inquiries
-- mark them as New or Replied
+If you want the next step after this is verified:
+- image sending
+- safer chat upgrades
+- multiple images
