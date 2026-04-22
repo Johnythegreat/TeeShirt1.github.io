@@ -172,6 +172,15 @@
               <div class="admin-chat-window" id="adminChatWindow"></div>
               <div class="admin-compose">
                 <textarea id="adminReplyText" placeholder="Type your reply to the customer here..."></textarea>
+                <div class="chat-upload-row">
+                  <label class="upload-chip" for="adminReplyImage">📷 Add Image</label>
+                  <input id="adminReplyImage" class="hidden-file-input" type="file" accept="image/*" />
+                  <span class="upload-file-name" id="adminReplyImageName">No image selected</span>
+                </div>
+                <div class="chat-image-preview hidden" id="adminReplyImagePreviewWrap">
+                  <img id="adminReplyImagePreview" alt="Admin selected image preview" />
+                  <button class="mini-remove-btn" id="removeAdminReplyImageBtn" type="button">Remove</button>
+                </div>
                 <div class="admin-compose-actions">
                   <select id="adminMessageStatus" class="order-status-select">
                     <option value="New">New</option>

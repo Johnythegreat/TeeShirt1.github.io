@@ -11,6 +11,7 @@ const ORDERS_KEY = "tee_shirt_orders";
 const HISTORY_KEY = "tee_shirt_order_history";
 const MESSAGES_KEY = "tee_shirt_messages";
 const CHAT_ID_KEY = "tee_shirt_chat_id";
+const CUSTOMER_LAST_SEEN_KEY = "tee_shirt_customer_last_seen";
 const MODE_KEY = "tee_shirt_mode";
 const categories = ["All","Oversized","Vintage","Minimal","Anime","Couple","New Arrival"];
 const demoProducts = [
@@ -86,6 +87,87 @@ const money = (v) => "₱" + Number(v || 0).toLocaleString();
 const totalAmount = (items) => items.reduce((s, i) => s + Number(i.price) * Number(i.qty), 0) + (items.length ? 60 : 0);
 const escapeHtml = (v) => String(v ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
 function showNotice(text){ const el = $("notice"); if(!el) return; el.textContent = text; el.style.display = "block"; clearTimeout(window.__teeNoticeTimer); window.__teeNoticeTimer = setTimeout(() => el.style.display = "none", 2000); }
+function formatChatTime(value){ return escapeHtml(String(value || "").replace("T"," ").slice(0,16)); }
+function renderChatMessageBody(item){
+  const parts = [];
+  if(item?.text) parts.push(`<div class="chat-text">${escapeHtml(item.text)}</div>`);
+  if(item?.image) parts.push(`<img class="chat-image" src="${escapeHtml(item.image)}" alt="Chat attachment" />`);
+  return parts.join("") || '<div class="chat-text">Attachment</div>';
+}
+function readFileAsDataUrl(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
+}
+async function compressImageFile(file, maxWidth=1280, quality=0.82){
+  if(!file) return "";
+  const dataUrl = await readFileAsDataUrl(file);
+  const image = await new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Failed to load image"));
+    img.src = dataUrl;
+  });
+  const ratio = Math.min(1, maxWidth / (image.width || maxWidth));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round((image.width || maxWidth) * ratio));
+  canvas.height = Math.max(1, Math.round((image.height || maxWidth) * ratio));
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+function setImagePreview(inputId, previewWrapId, previewImgId, fileNameId){
+  const input = $(inputId);
+  const wrap = $(previewWrapId);
+  const img = $(previewImgId);
+  const name = $(fileNameId);
+  const file = input?.files?.[0];
+  if(!input || !wrap || !img || !name) return;
+  if(!file){
+    wrap.classList.add("hidden");
+    img.removeAttribute("src");
+    name.textContent = "No image selected";
+    return;
+  }
+  name.textContent = file.name;
+  const url = URL.createObjectURL(file);
+  img.src = url;
+  img.onload = () => URL.revokeObjectURL(url);
+  wrap.classList.remove("hidden");
+}
+function clearFileInput(inputId, previewWrapId, previewImgId, fileNameId){
+  const input = $(inputId);
+  const wrap = $(previewWrapId);
+  const img = $(previewImgId);
+  const name = $(fileNameId);
+  if(input) input.value = "";
+  if(img) img.removeAttribute("src");
+  if(wrap) wrap.classList.add("hidden");
+  if(name) name.textContent = "No image selected";
+}
+function getLastSeenMap(){ return readJSON(CUSTOMER_LAST_SEEN_KEY, {}); }
+function setConversationSeen(chatId){
+  if(!chatId) return;
+  const map = getLastSeenMap();
+  map[chatId] = new Date().toISOString();
+  writeJSON(CUSTOMER_LAST_SEEN_KEY, map);
+}
+function updateInboxBadge(conversation){
+  const badge = $("inboxBadge");
+  if(!badge) return;
+  if(!conversation){
+    badge.classList.add("hidden");
+    badge.textContent = "0";
+    return;
+  }
+  const lastSeen = getLastSeenMap()[conversation.id] || "";
+  const unread = (Array.isArray(conversation.thread) ? conversation.thread : []).filter(item => item.sender === "admin" && String(item.at || "") > String(lastSeen)).length;
+  badge.textContent = String(unread);
+  badge.classList.toggle("hidden", unread <= 0);
+}
 function playNotificationBeep(){
   try{
     const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -256,14 +338,15 @@ function initAdminLogin(){
 
 async function saveInquiryMessage(payload){
   const now = new Date().toISOString();
-  const starter = { sender:"customer", text: payload.message, at: now };
+  const starter = { sender:"customer", text: payload.message || "", image: payload.image || "", at: now };
+  const latestMessage = payload.message || (payload.image ? "Image attachment" : "New message");
 
   if(getMode()==="firebase" && firebaseReady){
     await addDoc(collection(db, "messages"), {
       name: payload.name,
       phone: payload.phone,
-      message: payload.message,
-      latestMessage: payload.message,
+      message: payload.message || "",
+      latestMessage,
       status:"New",
       reply:"",
       thread:[starter],
@@ -278,8 +361,8 @@ async function saveInquiryMessage(payload){
     id:"MSG-" + Date.now(),
     name: payload.name,
     phone: payload.phone,
-    message: payload.message,
-    latestMessage: payload.message,
+    message: payload.message || "",
+    latestMessage,
     status:"New",
     reply:"",
     thread:[starter],
@@ -340,6 +423,7 @@ function initShop(){
   const cartView = $("cartView");
   const accountView = $("accountView");
   const productPageModal = $("productPageModal");
+  let liveConversations = [];
 
   function renderChips(){
     chipsEl.innerHTML = categories.map(cat => `<button class="chip ${cat===currentCategory?"active":""}" data-cat="${cat}">${cat}</button>`).join("");
@@ -693,39 +777,39 @@ function initShop(){
   function closeDrawer(){ drawer.classList.remove("show"); }
 
 
+  function findCustomerConversation(messages = liveConversations){
+    const phone = account.phone || ($("inq_phone")?.value || "").trim();
+    const chatId = localStorage.getItem(CHAT_ID_KEY);
+    let conversation = null;
+    if(chatId) conversation = messages.find(m => m.id === chatId) || null;
+    if(!conversation && phone) conversation = messages.filter(m => m.phone === phone).sort((a,b)=>String(b.updatedAt||b.createdAt||"").localeCompare(String(a.updatedAt||a.createdAt||"")))[0] || null;
+    if(conversation) localStorage.setItem(CHAT_ID_KEY, conversation.id);
+    updateInboxBadge(conversation);
+    return conversation;
+  }
+
   function renderCustomerChat(conversation){
     const box = $("customerChatWindow");
     if(!box) return;
     const thread = conversation?.thread || [];
     if(!thread.length){
       box.innerHTML = '<div class="chat-empty">Start your custom bulk order chat here.</div>';
+      updateInboxBadge(conversation);
       return;
     }
     box.innerHTML = thread.map(item => `
       <div class="chat-bubble ${item.sender === "admin" ? "admin" : "customer"}">
-        ${escapeHtml(item.text || "")}
-        <span class="chat-meta">${item.sender === "admin" ? "Admin" : "You"} • ${escapeHtml(String(item.at || "").replace("T"," ").slice(0,16))}</span>
+        ${renderChatMessageBody(item)}
+        <span class="chat-meta">${item.sender === "admin" ? "Admin" : "You"} • ${formatChatTime(item.at)}</span>
       </div>
     `).join("");
     box.scrollTop = box.scrollHeight;
+    updateInboxBadge(conversation);
   }
 
-  async function loadCustomerConversation(){
-    const phone = account.phone || ($("inq_phone")?.value || "").trim();
-    const chatId = localStorage.getItem(CHAT_ID_KEY);
-    let messages = [];
-
-    if(getMode()==="firebase" && firebaseReady){
-      const snap = await getDocs(collection(db, "messages"));
-      messages = snap.docs.map(d => ({ id:d.id, ...d.data() }));
-    }else{
-      messages = getLocalMessages();
-    }
-
-    let conversation = null;
-    if(chatId) conversation = messages.find(m => m.id === chatId) || null;
-    if(!conversation && phone) conversation = messages.filter(m => m.phone === phone).sort((a,b)=>String(b.updatedAt||"").localeCompare(String(a.updatedAt||"")))[0] || null;
-    if(conversation) localStorage.setItem(CHAT_ID_KEY, conversation.id);
+  async function loadCustomerConversation(messages = null){
+    const sourceMessages = Array.isArray(messages) ? messages : liveConversations;
+    const conversation = findCustomerConversation(sourceMessages);
     renderCustomerChat(conversation);
     return conversation;
   }
@@ -736,7 +820,12 @@ function initShop(){
     $("inq_name").value = account.name || "";
     $("inq_phone").value = account.phone || "";
     $("inq_message").value = "";
+    clearFileInput("inq_image", "inqImagePreviewWrap", "inqImagePreview", "inqImageName");
     modal.classList.remove("hidden");
+    const conversation = findCustomerConversation();
+    if(conversation){
+      setConversationSeen(conversation.id);
+    }
     loadCustomerConversation();
   }
 
@@ -749,9 +838,10 @@ function initShop(){
     const name = ($("inq_name")?.value || "").trim();
     const phone = ($("inq_phone")?.value || "").trim();
     const message = ($("inq_message")?.value || "").trim();
+    const imageFile = $("inq_image")?.files?.[0] || null;
 
-    if(!name || !phone || !message){
-      showNotice("Please complete the chat form");
+    if(!name || !phone || (!message && !imageFile)){
+      showNotice("Please type a message or add an image");
       return;
     }
 
@@ -759,27 +849,33 @@ function initShop(){
       account = { ...account, name, phone };
       writeJSON(ACCOUNT_KEY, account);
 
+      const image = imageFile ? await compressImageFile(imageFile) : "";
       let current = await loadCustomerConversation();
 
       if(current){
         const now = new Date().toISOString();
         const thread = Array.isArray(current.thread) ? current.thread.slice() : [];
-        thread.push({ sender:"customer", text: message, at: now });
+        thread.push({ sender:"customer", text: message, image, at: now });
         await updateMessage(current.id, {
           thread,
-          latestMessage: message,
-          message,
+          latestMessage: message || (image ? "Image attachment" : "New message"),
+          message: message || "",
           status:"New",
           updatedAt: now
         });
+        setConversationSeen(current.id);
       }else{
-        await saveInquiryMessage({ name, phone, message });
+        await saveInquiryMessage({ name, phone, message, image });
       }
 
       $("inq_message").value = "";
+      clearFileInput("inq_image", "inqImagePreviewWrap", "inqImagePreview", "inqImageName");
       await loadCustomerConversation();
+      const conversation = findCustomerConversation();
+      if(conversation) setConversationSeen(conversation.id);
       showNotice("Message sent to admin");
-    }catch{
+    }catch(error){
+      console.error(error);
       showNotice("Failed to send message");
     }
   }
@@ -792,14 +888,31 @@ function initShop(){
     renderCart();
   });
 
+  subscribeMessages((messages) => {
+    liveConversations = messages;
+    const conversation = findCustomerConversation(messages);
+    const modal = $("inquiryModal");
+    if(modal && !modal.classList.contains("hidden")){
+      if(conversation) setConversationSeen(conversation.id);
+      renderCustomerChat(conversation);
+    } else {
+      updateInboxBadge(conversation);
+    }
+  });
+
   renderChips();
   renderCart();
   bindNoticeButtons();
+  updateInboxBadge(findCustomerConversation());
+
+  if($("inq_image")) $("inq_image").onchange = () => setImagePreview("inq_image", "inqImagePreviewWrap", "inqImagePreview", "inqImageName");
+  if($("removeInquiryImageBtn")) $("removeInquiryImageBtn").onclick = () => clearFileInput("inq_image", "inqImagePreviewWrap", "inqImagePreview", "inqImageName");
 
   $("searchBtn").onclick = renderProducts;
   searchInput.oninput = renderProducts;
   $("shopNowBtn").onclick = () => $("productsSection").scrollIntoView({behavior:"smooth"});
   $("openAccountBtn").onclick = () => openInquiry();
+  if($("openInboxBtn")) $("openInboxBtn").onclick = () => openInquiry();
   $("openCartBtn").onclick = () => openDrawer("cart");
   $("navCart").onclick = () => openDrawer("cart");
   $("navAccount").onclick = () => openDrawer("account");
@@ -828,11 +941,6 @@ function initShop(){
   if($("closeInquiryBtn")) $("closeInquiryBtn").onclick = closeInquiry;
   if($("sendInquiryBtn")) $("sendInquiryBtn").onclick = sendInquiry;
   if($("inquiryModal")) $("inquiryModal").onclick = (e) => { if(e.target.id === "inquiryModal") closeInquiry(); };
-  window.__customerChatPoll && clearInterval(window.__customerChatPoll);
-  window.__customerChatPoll = setInterval(() => {
-    const modal = $("inquiryModal");
-    if(modal && !modal.classList.contains("hidden")) loadCustomerConversation();
-  }, 4000);
 }
 
 
@@ -898,32 +1006,36 @@ function initAdmin(){
     const thread = Array.isArray(current.thread) ? current.thread : [];
     chat.innerHTML = thread.length ? thread.map(item => `
       <div class="chat-bubble ${item.sender === "admin" ? "admin" : "customer"}">
-        ${escapeHtml(item.text || "")}
-        <span class="chat-meta">${item.sender === "admin" ? "Admin" : current.name || "Customer"} • ${escapeHtml(String(item.at || "").replace("T"," ").slice(0,16))}</span>
+        ${renderChatMessageBody(item)}
+        <span class="chat-meta">${item.sender === "admin" ? "Admin" : current.name || "Customer"} • ${formatChatTime(item.at)}</span>
       </div>
     `).join("") : '<div class="chat-empty">No messages yet.</div>';
     chat.scrollTop = chat.scrollHeight;
 
     sendBtn.onclick = async () => {
       const text = (replyText.value || "").trim();
+      const imageFile = $("adminReplyImage")?.files?.[0] || null;
       const newStatus = statusSel.value || "Replied";
-      if(!text){
-        showNotice("Type a reply first");
+      if(!text && !imageFile){
+        showNotice("Type a reply or add an image");
         return;
       }
       try{
         const now = new Date().toISOString();
-        const newThread = thread.concat([{ sender:"admin", text, at: now }]);
+        const image = imageFile ? await compressImageFile(imageFile) : "";
+        const newThread = thread.concat([{ sender:"admin", text, image, at: now }]);
         await updateMessage(current.id, {
           thread: newThread,
-          reply: text,
-          latestMessage: text,
+          reply: text || (image ? "Image attachment" : ""),
+          latestMessage: text || (image ? "Image attachment" : "New reply"),
           status: newStatus === "New" ? "Replied" : newStatus,
           updatedAt: now
         });
         replyText.value = "";
+        clearFileInput("adminReplyImage", "adminReplyImagePreviewWrap", "adminReplyImagePreview", "adminReplyImageName");
         showNotice("Reply sent");
-      }catch{
+      }catch(error){
+        console.error(error);
         showNotice("Reply failed");
       }
     };
@@ -941,6 +1053,9 @@ function initAdmin(){
 
   function renderCustomers(customers){ const tbody = $("customersTable"); if(!tbody) return; if(!customers.length){ tbody.innerHTML = '<tr><td colspan="4" class="empty">No customers yet.</td></tr>'; return; } tbody.innerHTML = customers.map(customer => `<tr><td>${escapeHtml(customer.name||"-")}</td><td>${escapeHtml(customer.phone||"-")}</td><td>${escapeHtml(customer.email||"-")}</td><td>${escapeHtml(customer.address||"-")}</td></tr>`).join(""); }
   function switchTab(tabName){ document.querySelectorAll(".admin-tab-panel").forEach(panel => panel.classList.add("hidden")); const target = $("tab-"+tabName); if(target) target.classList.remove("hidden"); document.querySelectorAll(".admin-tab-btn").forEach(btn => btn.classList.toggle("active", btn.dataset.tab===tabName)); }
+
+  if($("adminReplyImage")) $("adminReplyImage").onchange = () => setImagePreview("adminReplyImage", "adminReplyImagePreviewWrap", "adminReplyImagePreview", "adminReplyImageName");
+  if($("removeAdminReplyImageBtn")) $("removeAdminReplyImageBtn").onclick = () => clearFileInput("adminReplyImage", "adminReplyImagePreviewWrap", "adminReplyImagePreview", "adminReplyImageName");
 
   subscribeProducts((items, source) => renderProductsAdmin(items, source));
   subscribeOrders((activeOrders, historyOrders) => renderOrders(activeOrders, historyOrders));
