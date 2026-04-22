@@ -1,3 +1,13 @@
+
+// === IMAGE ATTACH (SAFE BASE64 SMALL) ===
+function readImageFile(file){
+  return new Promise((res,rej)=>{
+    const reader = new FileReader();
+    reader.onload = ()=> res(reader.result); // base64
+    reader.onerror = rej;
+    reader.readAsDataURL(file);
+  });
+}
 import { db, auth, firebaseReady, ADMIN_EMAILS } from "./firebase-config.js";
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, onSnapshot, serverTimestamp, query, orderBy, runTransaction, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -665,6 +675,12 @@ function initShop(){
   }
 
   async function sendInquiry(){
+  let imageData = null;
+  const imgInput = document.getElementById("inquiryImage");
+  if(imgInput && imgInput.files && imgInput.files[0]){
+    imageData = await readImageFile(imgInput.files[0]);
+  }
+
     const name = ($("inq_name")?.value || "").trim();
     const phone = ($("inq_phone")?.value || "").trim();
     const message = ($("inq_message")?.value || "").trim();
