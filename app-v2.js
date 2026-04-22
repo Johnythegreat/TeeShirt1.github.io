@@ -834,6 +834,9 @@ function initShop(){
     if(modal) modal.classList.add("hidden");
   }
 
+  window.__teeOpenInquiry = openInquiry;
+  window.__teeCloseInquiry = closeInquiry;
+
   async function sendInquiry(){
     const name = ($("inq_name")?.value || "").trim();
     const phone = ($("inq_phone")?.value || "").trim();
@@ -881,6 +884,15 @@ function initShop(){
   }
 
 
+  document.addEventListener("click", (e) => {
+    const inboxTrigger = e.target.closest("[data-open-inbox], #openInboxBtn");
+    if(inboxTrigger){
+      e.preventDefault();
+      openInquiry();
+      return;
+    }
+  });
+
   subscribeProducts((items, source) => {
     products = items;
     sourceLabel.textContent = source==="firebase" ? "Live from Firebase" : "Using local fallback";
@@ -906,13 +918,14 @@ function initShop(){
   updateInboxBadge(findCustomerConversation());
 
   if($("inq_image")) $("inq_image").onchange = () => setImagePreview("inq_image", "inqImagePreviewWrap", "inqImagePreview", "inqImageName");
+  if($("openInquiryUploadBtn") && $("inq_image")) $("openInquiryUploadBtn").onclick = () => $("inq_image").click();
   if($("removeInquiryImageBtn")) $("removeInquiryImageBtn").onclick = () => clearFileInput("inq_image", "inqImagePreviewWrap", "inqImagePreview", "inqImageName");
 
   $("searchBtn").onclick = renderProducts;
   searchInput.oninput = renderProducts;
   $("shopNowBtn").onclick = () => $("productsSection").scrollIntoView({behavior:"smooth"});
-  $("openAccountBtn").onclick = () => openInquiry();
-  if($("openInboxBtn")) $("openInboxBtn").onclick = () => openInquiry();
+  if($("openAccountBtn")) $("openAccountBtn").onclick = (e) => { e.preventDefault(); openInquiry(); };
+  if($("openInboxBtn")) $("openInboxBtn").onclick = (e) => { e.preventDefault(); openInquiry(); };
   $("openCartBtn").onclick = () => openDrawer("cart");
   $("navCart").onclick = () => openDrawer("cart");
   $("navAccount").onclick = () => openDrawer("account");
