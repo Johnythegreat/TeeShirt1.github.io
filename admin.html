@@ -158,27 +158,33 @@
         </section>
       </div>
     
+      
       <div id="tab-messages" class="admin-tab-panel hidden">
         <section class="panel">
           <div class="panel-head">
             <h2>Messages</h2>
-            <p>Customer custom bulk order inquiries will appear here.</p>
+            <p>Messenger-style custom bulk order chat for admin.</p>
           </div>
-          <div class="table-wrap">
-            <table class="admin-table">
-              <thead>
-                <tr>
-                  <th>Customer</th>
-                  <th>Message</th>
-                  <th>Status</th>
-                  <th>Date</th>
-                </tr>
-              </thead>
-              <tbody id="messagesTable"></tbody>
-            </table>
+          <div class="admin-messenger">
+            <div class="admin-conversation-list" id="messagesList"></div>
+            <div class="admin-conversation-panel">
+              <div class="admin-conversation-header" id="adminConversationHeader">Select a conversation</div>
+              <div class="admin-chat-window" id="adminChatWindow"></div>
+              <div class="admin-compose">
+                <textarea id="adminReplyText" placeholder="Type your reply to the customer here..."></textarea>
+                <div class="admin-compose-actions">
+                  <select id="adminMessageStatus" class="order-status-select">
+                    <option value="New">New</option>
+                    <option value="Replied">Replied</option>
+                  </select>
+                  <button class="btn dark" id="sendAdminReplyBtn">Send Reply</button>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       </div>
+
 
     </main>
   </div>

@@ -214,14 +214,14 @@
 
 
   
+  
   <div class="inquiry-modal hidden" id="inquiryModal">
-    <div class="inquiry-card">
+    <div class="inquiry-card messenger-card">
       <div class="drawer-head">
-        <strong>Custom Bulk Order Inquiry</strong>
+        <strong>Custom Bulk Order Chat</strong>
         <button class="icon-btn" id="closeInquiryBtn">✕</button>
       </div>
-      <div class="inquiry-body">
-        <div class="small">Send your design and bulk order details to admin.</div>
+      <div class="messenger-top-fields">
         <div class="field">
           <label>Name</label>
           <input id="inq_name" placeholder="Your full name" />
@@ -230,10 +230,10 @@
           <label>Phone</label>
           <input id="inq_phone" placeholder="09xxxxxxxxxx" />
         </div>
-        <div class="field">
-          <label>Message</label>
-          <<input type="file" id="inquiryImage" accept="image/*"><br>textarea id="inq_message" placeholder="Tell us your shirt design idea, quantity, sizes, event date, colors, and other details."></<input type="file" id="inquiryImage" accept="image/*"><br>textarea>
-        </div>
+      </div>
+      <div class="messenger-chat-window" id="customerChatWindow"></div>
+      <div class="messenger-compose">
+        <textarea id="inq_message" placeholder="Tell us your shirt design idea, quantity, sizes, event date, colors, and other details."></textarea>
         <button class="btn dark full-btn" id="sendInquiryBtn">Send Message</button>
       </div>
     </div>

@@ -1,13 +1,3 @@
-
-// === IMAGE ATTACH (SAFE BASE64 SMALL) ===
-function readImageFile(file){
-  return new Promise((res,rej)=>{
-    const reader = new FileReader();
-    reader.onload = ()=> res(reader.result); // base64
-    reader.onerror = rej;
-    reader.readAsDataURL(file);
-  });
-}
 import { db, auth, firebaseReady, ADMIN_EMAILS } from "./firebase-config.js";
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, onSnapshot, serverTimestamp, query, orderBy, runTransaction, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -20,6 +10,7 @@ const CUSTOMERS_KEY = "tee_shirt_customers";
 const ORDERS_KEY = "tee_shirt_orders";
 const HISTORY_KEY = "tee_shirt_order_history";
 const MESSAGES_KEY = "tee_shirt_messages";
+const CHAT_ID_KEY = "tee_shirt_chat_id";
 const MODE_KEY = "tee_shirt_mode";
 const categories = ["All","Oversized","Vintage","Minimal","Anime","Couple","New Arrival"];
 const demoProducts = [
@@ -95,6 +86,22 @@ const money = (v) => "₱" + Number(v || 0).toLocaleString();
 const totalAmount = (items) => items.reduce((s, i) => s + Number(i.price) * Number(i.qty), 0) + (items.length ? 60 : 0);
 const escapeHtml = (v) => String(v ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
 function showNotice(text){ const el = $("notice"); if(!el) return; el.textContent = text; el.style.display = "block"; clearTimeout(window.__teeNoticeTimer); window.__teeNoticeTimer = setTimeout(() => el.style.display = "none", 2000); }
+function playNotificationBeep(){
+  try{
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!Ctx) return;
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 880;
+    gain.gain.value = 0.03;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.12);
+  }catch{}
+}
 function getMode(){ const saved = readJSON(MODE_KEY, null); if(saved==="local"||saved==="firebase") return saved; return firebaseReady ? "firebase" : "local"; }
 function setMode(mode){ writeJSON(MODE_KEY, mode); }
 const getLocalProducts = () => readJSON(PRODUCTS_KEY, []);
@@ -248,36 +255,62 @@ function initAdminLogin(){
 
 
 async function saveInquiryMessage(payload){
+  const now = new Date().toISOString();
+  const starter = { sender:"customer", text: payload.message, at: now };
+
   if(getMode()==="firebase" && firebaseReady){
-    await addDoc(collection(db, "messages"), { ...payload, status:"New", createdAt:serverTimestamp() });
+    await addDoc(collection(db, "messages"), {
+      name: payload.name,
+      phone: payload.phone,
+      message: payload.message,
+      latestMessage: payload.message,
+      status:"New",
+      reply:"",
+      thread:[starter],
+      createdAt: now,
+      updatedAt: now
+    });
     return;
   }
+
   const items = getLocalMessages();
-  items.unshift({ id:"MSG-" + Date.now(), ...payload, status:"New", createdAt:new Date().toISOString() });
+  items.unshift({
+    id:"MSG-" + Date.now(),
+    name: payload.name,
+    phone: payload.phone,
+    message: payload.message,
+    latestMessage: payload.message,
+    status:"New",
+    reply:"",
+    thread:[starter],
+    createdAt: now,
+    updatedAt: now
+  });
   setLocalMessages(items);
 }
 
-async function updateMessageStatus(messageId, newStatus, cache=[]){
+async function updateMessage(messageId, updates){
   if(getMode()==="firebase" && firebaseReady){
-    await updateDoc(doc(db, "messages", messageId), { status:newStatus });
+    await updateDoc(doc(db, "messages", messageId), updates);
     return;
   }
   const items = getLocalMessages();
   const idx = items.findIndex(x => x.id === messageId);
   if(idx >= 0){
-    items[idx].status = newStatus;
+    items[idx] = { ...items[idx], ...updates };
     setLocalMessages(items);
   }
 }
 
 function subscribeMessages(callback){
+  const sortMessages = (arr) => arr.slice().sort((a,b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")));
   if(getMode()==="firebase" && firebaseReady){
-    return onSnapshot(query(collection(db, "messages"), orderBy("createdAt", "desc")), (snapshot) => {
-      callback(snapshot.docs.map(d => ({ id:d.id, ...d.data() })), "firebase");
-    }, () => callback(getLocalMessages(), "local"));
+    return onSnapshot(collection(db, "messages"), (snapshot) => {
+      callback(sortMessages(snapshot.docs.map(d => ({ id:d.id, ...d.data() }))), "firebase");
+    }, () => callback(sortMessages(getLocalMessages()), "local"));
   }
-  callback(getLocalMessages(), "local");
-  return storageSync(() => callback(getLocalMessages(), "local"));
+  callback(sortMessages(getLocalMessages()), "local");
+  return storageSync(() => callback(sortMessages(getLocalMessages()), "local"));
 }
 
 
@@ -660,6 +693,43 @@ function initShop(){
   function closeDrawer(){ drawer.classList.remove("show"); }
 
 
+  function renderCustomerChat(conversation){
+    const box = $("customerChatWindow");
+    if(!box) return;
+    const thread = conversation?.thread || [];
+    if(!thread.length){
+      box.innerHTML = '<div class="chat-empty">Start your custom bulk order chat here.</div>';
+      return;
+    }
+    box.innerHTML = thread.map(item => `
+      <div class="chat-bubble ${item.sender === "admin" ? "admin" : "customer"}">
+        ${escapeHtml(item.text || "")}
+        <span class="chat-meta">${item.sender === "admin" ? "Admin" : "You"} • ${escapeHtml(String(item.at || "").replace("T"," ").slice(0,16))}</span>
+      </div>
+    `).join("");
+    box.scrollTop = box.scrollHeight;
+  }
+
+  async function loadCustomerConversation(){
+    const phone = account.phone || ($("inq_phone")?.value || "").trim();
+    const chatId = localStorage.getItem(CHAT_ID_KEY);
+    let messages = [];
+
+    if(getMode()==="firebase" && firebaseReady){
+      const snap = await getDocs(collection(db, "messages"));
+      messages = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    }else{
+      messages = getLocalMessages();
+    }
+
+    let conversation = null;
+    if(chatId) conversation = messages.find(m => m.id === chatId) || null;
+    if(!conversation && phone) conversation = messages.filter(m => m.phone === phone).sort((a,b)=>String(b.updatedAt||"").localeCompare(String(a.updatedAt||"")))[0] || null;
+    if(conversation) localStorage.setItem(CHAT_ID_KEY, conversation.id);
+    renderCustomerChat(conversation);
+    return conversation;
+  }
+
   function openInquiry(){
     const modal = $("inquiryModal");
     if(!modal) return;
@@ -667,6 +737,7 @@ function initShop(){
     $("inq_phone").value = account.phone || "";
     $("inq_message").value = "";
     modal.classList.remove("hidden");
+    loadCustomerConversation();
   }
 
   function closeInquiry(){
@@ -675,26 +746,38 @@ function initShop(){
   }
 
   async function sendInquiry(){
-  let imageData = null;
-  const imgInput = document.getElementById("inquiryImage");
-  if(imgInput && imgInput.files && imgInput.files[0]){
-    imageData = await readImageFile(imgInput.files[0]);
-  }
-
     const name = ($("inq_name")?.value || "").trim();
     const phone = ($("inq_phone")?.value || "").trim();
     const message = ($("inq_message")?.value || "").trim();
 
     if(!name || !phone || !message){
-      showNotice("Please complete the inquiry form");
+      showNotice("Please complete the chat form");
       return;
     }
 
     try{
-      await saveInquiryMessage({ name, phone, message });
       account = { ...account, name, phone };
       writeJSON(ACCOUNT_KEY, account);
-      closeInquiry();
+
+      let current = await loadCustomerConversation();
+
+      if(current){
+        const now = new Date().toISOString();
+        const thread = Array.isArray(current.thread) ? current.thread.slice() : [];
+        thread.push({ sender:"customer", text: message, at: now });
+        await updateMessage(current.id, {
+          thread,
+          latestMessage: message,
+          message,
+          status:"New",
+          updatedAt: now
+        });
+      }else{
+        await saveInquiryMessage({ name, phone, message });
+      }
+
+      $("inq_message").value = "";
+      await loadCustomerConversation();
       showNotice("Message sent to admin");
     }catch{
       showNotice("Failed to send message");
@@ -745,6 +828,11 @@ function initShop(){
   if($("closeInquiryBtn")) $("closeInquiryBtn").onclick = closeInquiry;
   if($("sendInquiryBtn")) $("sendInquiryBtn").onclick = sendInquiry;
   if($("inquiryModal")) $("inquiryModal").onclick = (e) => { if(e.target.id === "inquiryModal") closeInquiry(); };
+  window.__customerChatPoll && clearInterval(window.__customerChatPoll);
+  window.__customerChatPoll = setInterval(() => {
+    const modal = $("inquiryModal");
+    if(modal && !modal.classList.contains("hidden")) loadCustomerConversation();
+  }, 4000);
 }
 
 
@@ -766,39 +854,88 @@ function initAdmin(){
   function renderOrders(activeOrders, historyOrders){ activeOrdersCache = activeOrders.slice(); const tbody = $("ordersTable"), historyBody = $("historyTable"); if(!tbody || !historyBody) return; if(!activeOrders.length) tbody.innerHTML = '<tr><td colspan="6" class="empty">No active orders yet.</td></tr>'; else { tbody.innerHTML = activeOrders.map(order => `<tr><td>${escapeHtml(order.id||"-")}</td><td><div style="font-weight:800">${escapeHtml(order.customer?.name||"-")}</div><div class="small">${escapeHtml(order.customer?.phone||"")}</div></td><td>${money(order.total||0)}</td><td><select class="order-status-select" data-order-status="${escapeHtml(order.id||"")}"><option value="Pending" ${order.status==="Pending"?"selected":""}>Pending</option><option value="Preparing" ${order.status==="Preparing"?"selected":""}>Preparing</option><option value="Ready" ${order.status==="Ready"?"selected":""}>Ready</option><option value="Completed" ${order.status==="Completed"?"selected":""}>Completed</option></select></td><td>${(order.items||[]).map(i => `${escapeHtml(i.name)} x${Number(i.qty)}`).join("<br>")}</td><td><button class="btn ghost" data-archive-order="${escapeHtml(order.id||"")}">Move to History</button></td></tr>`).join(""); tbody.querySelectorAll("[data-order-status]").forEach(select => select.onchange = async function(){ try { await updateOrderStatus(this.dataset.orderStatus, this.value, activeOrdersCache); showNotice(this.value==="Completed" ? "Order moved to history" : "Order status updated"); } catch { showNotice("Status update failed"); } }); tbody.querySelectorAll("[data-archive-order]").forEach(btn => btn.onclick = async () => { try { await moveOrderToHistory(btn.dataset.archiveOrder, activeOrdersCache); showNotice("Order moved to history"); } catch { showNotice("Move failed"); } }); } if(!historyOrders.length) historyBody.innerHTML = '<tr><td colspan="5" class="empty">No order history yet.</td></tr>'; else historyBody.innerHTML = historyOrders.map(order => `<tr><td>${escapeHtml(order.id||"-")}</td><td><div style="font-weight:800">${escapeHtml(order.customer?.name||"-")}</div><div class="small">${escapeHtml(order.customer?.phone||"")}</div></td><td>${money(order.total||0)}</td><td>${escapeHtml(order.status||"Completed")}</td><td>${(order.items||[]).map(i => `${escapeHtml(i.name)} x${Number(i.qty)}`).join("<br>")}</td></tr>`).join(""); }
 
   function renderMessages(messages){
-    const tbody = $("messagesTable");
-    if(!tbody) return;
-    if(!messages.length){
-      tbody.innerHTML = '<tr><td colspan="4" class="empty">No messages yet.</td></tr>';
-      return;
-    }
-    tbody.innerHTML = messages.map(item => `
-      <tr>
-        <td>
-          <div style="font-weight:800">${escapeHtml(item.name || "-")}</div>
-          <div class="small">${escapeHtml(item.phone || "-")}</div>
-        </td>
-        <td style="min-width:260px">${escapeHtml(item.message || "-")}</td>
-        <td>
-          <select class="order-status-select" data-message-status="${escapeHtml(item.id || "")}">
-            <option value="New" ${item.status === "New" ? "selected" : ""}>New</option>
-            <option value="Replied" ${item.status === "Replied" ? "selected" : ""}>Replied</option>
-          </select>
-        </td>
-        <td>${escapeHtml(String(item.createdAt?.seconds ? new Date(item.createdAt.seconds * 1000).toLocaleString() : (item.createdAt || "")).replace("T"," ").slice(0,19) || "-")}</td>
-      </tr>
-    `).join("");
+    const list = $("messagesList");
+    const header = $("adminConversationHeader");
+    const chat = $("adminChatWindow");
+    const replyText = $("adminReplyText");
+    const statusSel = $("adminMessageStatus");
+    const sendBtn = $("sendAdminReplyBtn");
+    if(!list || !header || !chat || !replyText || !statusSel || !sendBtn) return;
 
-    tbody.querySelectorAll("[data-message-status]").forEach(sel => {
-      sel.onchange = async () => {
-        try{
-          await updateMessageStatus(sel.dataset.messageStatus, sel.value);
-          showNotice("Message status updated");
-        }catch{
-          showNotice("Message status update failed");
-        }
+    let selectedId = window.__adminSelectedMessageId;
+    if(!selectedId && messages.length) selectedId = messages[0].id;
+    const current = messages.find(m => m.id === selectedId) || messages[0] || null;
+    window.__adminSelectedMessageId = current?.id || null;
+
+    list.innerHTML = messages.length ? messages.map(item => {
+      const preview = item.latestMessage || item.message || "";
+      const isActive = item.id === window.__adminSelectedMessageId;
+      return `
+        <div class="admin-conversation-item ${isActive ? "active" : ""} ${item.status === "New" ? "unread" : ""}" data-open-message="${escapeHtml(item.id)}">
+          <div class="admin-conversation-name">${escapeHtml(item.name || "-")}${item.status === "New" ? '<span class="unread-badge">NEW</span>' : ''}</div>
+          <div class="small">${escapeHtml(item.phone || "-")}</div>
+          <div class="admin-conversation-preview">${escapeHtml(preview)}</div>
+        </div>
+      `;
+    }).join("") : '<div class="chat-empty">No conversations yet.</div>';
+
+    list.querySelectorAll("[data-open-message]").forEach(btn => {
+      btn.onclick = () => {
+        window.__adminSelectedMessageId = btn.dataset.openMessage;
+        renderMessages(messages);
       };
     });
+
+    if(!current){
+      header.textContent = "Select a conversation";
+      chat.innerHTML = '<div class="chat-empty">No conversation selected.</div>';
+      replyText.value = "";
+      return;
+    }
+
+    header.textContent = `${current.name || "-"} • ${current.phone || "-"}`;
+    statusSel.value = current.status || "New";
+    const thread = Array.isArray(current.thread) ? current.thread : [];
+    chat.innerHTML = thread.length ? thread.map(item => `
+      <div class="chat-bubble ${item.sender === "admin" ? "admin" : "customer"}">
+        ${escapeHtml(item.text || "")}
+        <span class="chat-meta">${item.sender === "admin" ? "Admin" : current.name || "Customer"} • ${escapeHtml(String(item.at || "").replace("T"," ").slice(0,16))}</span>
+      </div>
+    `).join("") : '<div class="chat-empty">No messages yet.</div>';
+    chat.scrollTop = chat.scrollHeight;
+
+    sendBtn.onclick = async () => {
+      const text = (replyText.value || "").trim();
+      const newStatus = statusSel.value || "Replied";
+      if(!text){
+        showNotice("Type a reply first");
+        return;
+      }
+      try{
+        const now = new Date().toISOString();
+        const newThread = thread.concat([{ sender:"admin", text, at: now }]);
+        await updateMessage(current.id, {
+          thread: newThread,
+          reply: text,
+          latestMessage: text,
+          status: newStatus === "New" ? "Replied" : newStatus,
+          updatedAt: now
+        });
+        replyText.value = "";
+        showNotice("Reply sent");
+      }catch{
+        showNotice("Reply failed");
+      }
+    };
+
+    statusSel.onchange = async () => {
+      try{
+        await updateMessage(current.id, { status: statusSel.value });
+        showNotice("Status updated");
+      }catch{
+        showNotice("Status update failed");
+      }
+    };
   }
 
 
@@ -808,7 +945,12 @@ function initAdmin(){
   subscribeProducts((items, source) => renderProductsAdmin(items, source));
   subscribeOrders((activeOrders, historyOrders) => renderOrders(activeOrders, historyOrders));
   subscribeCustomers((customers) => renderCustomers(customers));
-  subscribeMessages((messages) => renderMessages(messages));
+  let __lastAdminMessageCount = 0;
+  subscribeMessages((messages) => {
+    if(messages.length > __lastAdminMessageCount && __lastAdminMessageCount !== 0) playNotificationBeep();
+    __lastAdminMessageCount = messages.length;
+    renderMessages(messages);
+  });
   document.querySelectorAll(".admin-tab-btn").forEach(btn => btn.onclick = () => switchTab(btn.dataset.tab));
   switchTab("products");
   form.onsubmit = async (e) => { e.preventDefault(); const docId = $("docId").value.trim(); const payload = {

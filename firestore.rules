@@ -22,8 +22,8 @@ service cloud.firestore {
       allow read, delete: if isAdmin();
     }
     match /messages/{messageId} {
-      allow create: if true;
-      allow read, update, delete: if isAdmin();
+      allow create, read, update: if true;
+      allow delete: if isAdmin();
     }
   }
 }
