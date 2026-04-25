@@ -3,80 +3,80 @@ import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, onSnapshot, ser
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const page = document.body.dataset.page;
-const PRODUCTS_KEY = "tee_shirt_products";
-const CART_KEY = "tee_shirt_cart";
-const ACCOUNT_KEY = "tee_shirt_account";
-const CUSTOMERS_KEY = "tee_shirt_customers";
-const ORDERS_KEY = "tee_shirt_orders";
-const HISTORY_KEY = "tee_shirt_order_history";
-const MESSAGES_KEY = "tee_shirt_messages";
-const CHAT_ID_KEY = "tee_shirt_chat_id";
-const CUSTOMER_LAST_SEEN_KEY = "tee_shirt_customer_last_seen";
-const MODE_KEY = "tee_shirt_mode";
-const categories = ["All","Oversized","Vintage","Minimal","Anime","Couple","New Arrival"];
+const PRODUCTS_KEY = "vape_shop_products";
+const CART_KEY = "vape_shop_cart";
+const ACCOUNT_KEY = "vape_shop_account";
+const CUSTOMERS_KEY = "vape_shop_customers";
+const ORDERS_KEY = "vape_shop_orders";
+const HISTORY_KEY = "vape_shop_order_history";
+const MESSAGES_KEY = "vape_shop_messages";
+const CHAT_ID_KEY = "vape_shop_chat_id";
+const CUSTOMER_LAST_SEEN_KEY = "vape_shop_customer_last_seen";
+const MODE_KEY = "vape_shop_mode";
+const categories = ["All","Pods","Devices","E-Juice","Battery","Accessories","Promo"];
 const demoProducts = [
   {
-    name:"Premium Oversized Black Tee",
-    brand:"TEE SHIRT",
-    category:"Oversized",
-    price:250,
-    oldPrice:349,
-    stock:25,
+    name:"X-Black V2 Pod",
+    brand:"X-BLACK",
+    category:"Pods",
+    price:450,
+    oldPrice:500,
+    stock:80,
     sold:"120+ sold",
-    badge:"Bulk Deal",
-    image:"https://images.unsplash.com/photo-1521572179197-9c2b31b95f4c?auto=format&fit=crop&w=800&q=80",
+    badge:"8 Flavors",
+    image:"https://images.unsplash.com/photo-1628175795172-20291f2c9b67?auto=format&fit=crop&w=800&q=80",
     images:[
-      "https://images.unsplash.com/photo-1521572179197-9c2b31b95f4c?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1503341504253-dff4815485f1?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1576566588028-4147f3842f27?auto=format&fit=crop&w=800&q=80"
+      "https://images.unsplash.com/photo-1628175795172-20291f2c9b67?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1560162562-b5d95a891659?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1608156639585-b3a032ef9689?auto=format&fit=crop&w=800&q=80"
     ]
   },
   {
-    name:"Vintage Washed Graphic Shirt",
-    brand:"TEE SHIRT",
-    category:"Vintage",
-    price:280,
-    oldPrice:389,
-    stock:12,
-    sold:"86+ sold",
-    badge:"Promo",
-    image:"https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=800&q=80",
+    name:"X-Black V3 Device",
+    brand:"X-BLACK",
+    category:"Devices",
+    price:380,
+    oldPrice:450,
+    stock:45,
+    sold:"90+ sold",
+    badge:"4 Colors",
+    image:"https://images.unsplash.com/photo-1610651709623-4e8e1c2107dd?auto=format&fit=crop&w=800&q=80",
     images:[
-      "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=80"
+      "https://images.unsplash.com/photo-1610651709623-4e8e1c2107dd?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1603064752734-4c48eff53d05?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1585386959984-a4155224a1ad?auto=format&fit=crop&w=800&q=80"
     ]
   },
   {
-    name:"Minimal White Essential Tee",
-    brand:"TEE SHIRT",
-    category:"Minimal",
+    name:"X-Black Pod + Device Bundle",
+    brand:"MR VAPE SHOP",
+    category:"Promo",
+    price:750,
+    oldPrice:830,
+    stock:30,
+    sold:"Best bundle",
+    badge:"Save ₱80",
+    image:"https://images.unsplash.com/photo-1559599746-8823b38544c6?auto=format&fit=crop&w=800&q=80",
+    images:[
+      "https://images.unsplash.com/photo-1559599746-8823b38544c6?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1608156639585-b3a032ef9689?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1628175795172-20291f2c9b67?auto=format&fit=crop&w=800&q=80"
+    ]
+  },
+  {
+    name:"Premium E-Juice Flavor",
+    brand:"VAPE ESSENTIALS",
+    category:"E-Juice",
     price:250,
-    oldPrice:299,
-    stock:34,
-    sold:"200+ sold",
-    badge:"Best Seller",
-    image:"https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=800&q=80",
+    oldPrice:300,
+    stock:60,
+    sold:"Fresh stock",
+    badge:"New Arrival",
+    image:"https://images.unsplash.com/photo-1607242792481-37f27e1d74e1?auto=format&fit=crop&w=800&q=80",
     images:[
-      "https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1562157873-818bc0726f68?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&w=800&q=80"
-    ]
-  },
-  {
-    name:"Anime Street Print Oversized",
-    brand:"TEE SHIRT",
-    category:"Anime",
-    price:320,
-    oldPrice:399,
-    stock:8,
-    sold:"64+ sold",
-    badge:"New",
-    image:"https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=800&q=80",
-    images:[
-      "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1523398002811-999ca8dec234?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80"
+      "https://images.unsplash.com/photo-1607242792481-37f27e1d74e1?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1607853554439-0069ec0f29b6?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1595433562696-a8b554b5d878?auto=format&fit=crop&w=800&q=80"
     ]
   }
 ];
@@ -86,7 +86,7 @@ const writeJSON = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 const money = (v) => "₱" + Number(v || 0).toLocaleString();
 const totalAmount = (items) => items.reduce((s, i) => s + Number(i.price) * Number(i.qty), 0) + (items.length ? 60 : 0);
 const escapeHtml = (v) => String(v ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
-function showNotice(text){ const el = $("notice"); if(!el) return; el.textContent = text; el.style.display = "block"; clearTimeout(window.__teeNoticeTimer); window.__teeNoticeTimer = setTimeout(() => el.style.display = "none", 2000); }
+function showNotice(text){ const el = $("notice"); if(!el) return; el.textContent = text; el.style.display = "block"; clearTimeout(window.__vapeNoticeTimer); window.__vapeNoticeTimer = setTimeout(() => el.style.display = "none", 2000); }
 function formatChatTime(value){ return escapeHtml(String(value || "").replace("T"," ").slice(0,16)); }
 function renderChatMessageBody(item){
   const parts = [];
@@ -542,7 +542,7 @@ function initShop(){
     $("thumbImg1").src = galleryImages[0] || p.image;
     $("thumbImg2").src = galleryImages[1] || galleryImages[0] || p.image;
     $("thumbImg3").src = galleryImages[2] || galleryImages[0] || p.image;
-    $("productPageBrand").textContent = p.brand || "TEE SHIRT";
+    $("productPageBrand").textContent = p.brand || "MR VAPE SHOP";
     $("productPageName").textContent = p.name || "";
     $("productPagePrice").textContent = money(p.price);
     $("productPageOldPrice").textContent = money(p.oldPrice);
@@ -550,7 +550,7 @@ function initShop(){
     $("productPageSold").textContent = p.sold || "0 sold";
     $("productPageStock").textContent = "Stock: " + Number(p.stock || 0);
     $("productPageDescription").textContent =
-      `${p.name} is ideal for bulk custom orders, business uniforms, event shirts, team wear, and giveaways. Clean presentation, strong print-ready look, and budget-friendly value starting at just ₱250.`;
+      `${p.name} is available in our vape catalog. Check the price, stock, available flavor or device color, then add to cart for checkout or shop inquiry.`;
 
     [$("thumbBtn1"), $("thumbBtn2"), $("thumbBtn3")].forEach((thumb, i) => {
       if(!thumb) return;
@@ -563,7 +563,7 @@ function initShop(){
     });
 
     document.querySelectorAll(".size-option").forEach(btn => btn.classList.remove("active"));
-    $("selectedSizeLabel").textContent = "No size selected";
+    $("selectedSizeLabel").textContent = "No variant selected";
     $("detailQtyValue").textContent = String(detailQty);
     updateDetailTotal();
     wireSizeButtons();
@@ -592,7 +592,7 @@ function initShop(){
       return;
     }
     if(!selectedSize){
-      showNotice("Please select size");
+      showNotice("Please select variant");
       return;
     }
     const stock = Number(selectedProduct.stock || 0);
@@ -623,7 +623,7 @@ function initShop(){
     writeJSON(CART_KEY, cart);
     renderCart();
     closeProductPage();
-    showNotice(`Added ${detailQty} item(s) - Size ${selectedSize}`);
+    showNotice(`Added ${detailQty} item(s) - Variant ${selectedSize}`);
   }
 
   function changeCartQtyByKey(id, size, delta){
@@ -667,7 +667,7 @@ function initShop(){
           <div class="cart-thumb" style="background-image:url('${item.image}')"></div>
           <div>
             <div style="font-weight:800">${escapeHtml(item.name)}</div>
-            <div class="small">${escapeHtml(item.brand)} • ${escapeHtml(item.category)} • Size: ${escapeHtml(item.size || "M")}</div>
+            <div class="small">${escapeHtml(item.brand)} • ${escapeHtml(item.category)} • Variant: ${escapeHtml(item.size || "M")}</div>
             <div class="qty">
               <button data-minus="${item.id}" data-size="${escapeHtml(item.size || "M")}">−</button>
               <strong>${item.qty}</strong>
@@ -683,7 +683,7 @@ function initShop(){
       <div style="height:14px"></div>
       <div class="summary">
         <div class="summary-row"><span>Subtotal</span><strong>${money(subtotal)}</strong></div>
-        <div class="summary-row"><span>Shipping</span><strong>${money(shipping)}</strong></div>
+        <div class="summary-row"><span>Delivery Fee</span><strong>${money(shipping)}</strong></div>
         <div class="summary-row" style="font-size:18px"><span>Total</span><strong>${money(total)}</strong></div>
         <button class="btn dark" style="width:100%;margin-top:10px" id="checkoutBtn">Checkout</button>
       </div>
@@ -951,7 +951,6 @@ function initShop(){
   if($("closeInquiryBtn")) $("closeInquiryBtn").onclick = closeInquiry;
   if($("sendInquiryBtn")) {
     $("sendInquiryBtn").onclick = sendInquiry;
-    $("sendInquiryBtn").addEventListener("click", sendInquiry);
   }
   if($("inquiryModal")) $("inquiryModal").onclick = (e) => { if(e.target.id === "inquiryModal") closeInquiry(); };
 }
@@ -970,7 +969,7 @@ function initAdmin(){
   }
   function updateStats(items){ $("statProducts").textContent = items.length; $("statStock").textContent = items.reduce((a,b)=>a+Number(b.stock||0),0); $("statLow").textContent = items.filter(x=>Number(x.stock||0)<=10).length; $("statCategories").textContent = new Set(items.map(x=>x.category)).size; }
   function clearForm(){ form.reset(); $("docId").value = ""; if($("image2")) $("image2").value=""; if($("image3")) $("image3").value=""; if($("image4")) $("image4").value=""; }
-  function fillForm(item){ $("docId").value=item.id; $("name").value=item.name||""; $("brand").value=item.brand||""; $("category").value=item.category||"Oversized"; $("price").value=item.price||0; $("oldPrice").value=item.oldPrice||0; $("stock").value=item.stock||0; $("sold").value=item.sold||""; $("badge").value=item.badge||""; $("image").value=item.image||""; $("image2").value=(item.images&&item.images[1])||""; $("image3").value=(item.images&&item.images[2])||""; $("image4").value=(item.images&&item.images[3])||""; window.scrollTo({top:0, behavior:"smooth"}); }
+  function fillForm(item){ $("docId").value=item.id; $("name").value=item.name||""; $("brand").value=item.brand||""; $("category").value=item.category||"Pods"; $("price").value=item.price||0; $("oldPrice").value=item.oldPrice||0; $("stock").value=item.stock||0; $("sold").value=item.sold||""; $("badge").value=item.badge||""; $("image").value=item.image||""; $("image2").value=(item.images&&item.images[1])||""; $("image3").value=(item.images&&item.images[2])||""; $("image4").value=(item.images&&item.images[3])||""; window.scrollTo({top:0, behavior:"smooth"}); }
   function renderProductsAdmin(items, source){ $("adminSourceLabel").textContent = source==="firebase" ? "Live from Firebase" : "Using local fallback"; updateStats(items); if(!items.length){ table.innerHTML = '<tr><td colspan="5" class="empty">No products found.</td></tr>'; return; } table.innerHTML = items.map(item => `<tr><td><div style="font-weight:800">${escapeHtml(item.name)}</div><div class="small">${escapeHtml(item.brand)}</div></td><td>${escapeHtml(item.category)}</td><td>${money(item.price)}</td><td>${Number(item.stock||0)}</td><td><div class="row-actions"><button class="btn ghost" data-edit="${item.id}">Edit</button><button class="btn dark" data-delete="${item.id}">Delete</button></div></td></tr>`).join(""); table.querySelectorAll("[data-edit]").forEach(btn => btn.onclick = () => { const item = items.find(x => x.id===btn.dataset.edit); if(item) fillForm(item); }); table.querySelectorAll("[data-delete]").forEach(btn => btn.onclick = async () => { try { await deleteProductItem(btn.dataset.delete); showNotice("Product deleted"); } catch { showNotice("Delete failed"); } }); }
   function renderOrders(activeOrders, historyOrders){ activeOrdersCache = activeOrders.slice(); const tbody = $("ordersTable"), historyBody = $("historyTable"); if(!tbody || !historyBody) return; if(!activeOrders.length) tbody.innerHTML = '<tr><td colspan="6" class="empty">No active orders yet.</td></tr>'; else { tbody.innerHTML = activeOrders.map(order => `<tr><td>${escapeHtml(order.id||"-")}</td><td><div style="font-weight:800">${escapeHtml(order.customer?.name||"-")}</div><div class="small">${escapeHtml(order.customer?.phone||"")}</div></td><td>${money(order.total||0)}</td><td><select class="order-status-select" data-order-status="${escapeHtml(order.id||"")}"><option value="Pending" ${order.status==="Pending"?"selected":""}>Pending</option><option value="Preparing" ${order.status==="Preparing"?"selected":""}>Preparing</option><option value="Ready" ${order.status==="Ready"?"selected":""}>Ready</option><option value="Completed" ${order.status==="Completed"?"selected":""}>Completed</option></select></td><td>${(order.items||[]).map(i => `${escapeHtml(i.name)} x${Number(i.qty)}`).join("<br>")}</td><td><button class="btn ghost" data-archive-order="${escapeHtml(order.id||"")}">Move to History</button></td></tr>`).join(""); tbody.querySelectorAll("[data-order-status]").forEach(select => select.onchange = async function(){ try { await updateOrderStatus(this.dataset.orderStatus, this.value, activeOrdersCache); showNotice(this.value==="Completed" ? "Order moved to history" : "Order status updated"); } catch { showNotice("Status update failed"); } }); tbody.querySelectorAll("[data-archive-order]").forEach(btn => btn.onclick = async () => { try { await moveOrderToHistory(btn.dataset.archiveOrder, activeOrdersCache); showNotice("Order moved to history"); } catch { showNotice("Move failed"); } }); } if(!historyOrders.length) historyBody.innerHTML = '<tr><td colspan="5" class="empty">No order history yet.</td></tr>'; else historyBody.innerHTML = historyOrders.map(order => `<tr><td>${escapeHtml(order.id||"-")}</td><td><div style="font-weight:800">${escapeHtml(order.customer?.name||"-")}</div><div class="small">${escapeHtml(order.customer?.phone||"")}</div></td><td>${money(order.total||0)}</td><td>${escapeHtml(order.status||"Completed")}</td><td>${(order.items||[]).map(i => `${escapeHtml(i.name)} x${Number(i.qty)}`).join("<br>")}</td></tr>`).join(""); }
 
@@ -1104,3 +1103,42 @@ function initAdmin(){
   $("switchLocalBtn").onclick = () => { setMode("local"); showNotice("Switched to local mode"); setTimeout(() => location.reload(), 600); };
   $("switchFirebaseBtn").onclick = () => { if(!firebaseReady){ showNotice("Firebase is not available here"); return; } setMode("firebase"); showNotice("Switched to Firebase mode"); setTimeout(() => location.reload(), 600); };
 }
+
+
+/* === PRO CHAT UX HELPERS ===
+   - Quick message chips for customer and admin
+   - Enter to send, Shift+Enter for new line
+   - Keeps chat textareas focused and faster to use
+*/
+document.addEventListener("click", (event) => {
+  const customerQuick = event.target.closest("[data-quick-message]");
+  if(customerQuick){
+    const box = document.getElementById("inq_message");
+    if(box){
+      box.value = customerQuick.dataset.quickMessage || "";
+      box.focus();
+    }
+  }
+  const adminQuick = event.target.closest("[data-admin-quick-reply]");
+  if(adminQuick){
+    const box = document.getElementById("adminReplyText");
+    if(box){
+      box.value = adminQuick.dataset.adminQuickReply || "";
+      box.focus();
+    }
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if(event.key !== "Enter" || event.shiftKey) return;
+  const target = event.target;
+  if(!target) return;
+  if(target.id === "inq_message"){
+    event.preventDefault();
+    document.getElementById("sendInquiryBtn")?.click();
+  }
+  if(target.id === "adminReplyText"){
+    event.preventDefault();
+    document.getElementById("sendAdminReplyBtn")?.click();
+  }
+});

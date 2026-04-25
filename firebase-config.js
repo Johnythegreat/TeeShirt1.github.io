@@ -3,13 +3,13 @@ import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebas
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBixSGdlKiomeZpAlpIuZ3Jzb0RoWbsrlI",
-  authDomain: "tee-shirt-34f57.firebaseapp.com",
-  projectId: "tee-shirt-34f57",
-  storageBucket: "tee-shirt-34f57.firebasestorage.app",
-  messagingSenderId: "1048371686884",
-  appId: "1:1048371686884:web:85b2c96d9e879bccf4abf1",
-  measurementId: "G-6ERPD0DVVB"
+  apiKey: "AIzaSyC-NOyBMF0hhx7CATLFPu4lVX4HBgaweY8",
+  authDomain: "vape-shop-2.firebaseapp.com",
+  projectId: "vape-shop-2",
+  storageBucket: "vape-shop-2.firebasestorage.app",
+  messagingSenderId: "702891209672",
+  appId: "1:702891209672:web:dc6beec97411f76df9c6fd",
+  measurementId: "G-TVH0L3X5XZ"
 };
 
 const ADMIN_EMAILS = [
