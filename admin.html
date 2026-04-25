@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mr Vape Shop Admin</title>
+  <title>Tee Shirt Admin</title>
   <link rel="stylesheet" href="./styles-v3.css" />
 </head>
 <body data-page="admin">
   <div class="admin-app">
     <aside class="sidebar">
-      <div class="sidebar-logo">MR VAPE SHOP ADMIN</div>
+      <div class="sidebar-logo">TEE SHIRT ADMIN</div>
       <a href="./index.html" class="side-link">← Customer Page</a>
       <button class="side-link active admin-tab-btn" type="button" data-tab="products">Products</button>
       <button class="side-link admin-tab-btn" type="button" data-tab="orders">Orders</button>
@@ -45,9 +45,9 @@
             <p>Already shown on the customer page</p>
           </div>
           <div class="notes">
-            <p><strong>🔥 Premium Vape Deals Ready to Use 🔥</strong></p>
-            <p><strong>Pods, devices, juice, batteries, and accessories</strong></p>
-            <p><strong>X-Black bundle promo ₱750 only</strong></p>
+            <p><strong>🔥 Custom Tees Starting at Just ₱250! 🔥</strong></p>
+            <p><strong>Fully customizable for businesses, events, teams, and giveaways</strong></p>
+            <p><strong>Bulk orders with 20 pcs minimum</strong></p>
           </div>
         </section>
 
@@ -61,23 +61,23 @@
             <form id="productForm" class="admin-form">
               <input type="hidden" id="docId" />
               <div class="form-grid">
-                <label>Product Name<input id="name" required placeholder="X-Black V2 Pod" /></label>
-                <label>Brand<input id="brand" required placeholder="MR VAPE SHOP" /></label>
+                <label>Product Name<input id="name" required placeholder="Premium Oversized Tee" /></label>
+                <label>Brand<input id="brand" required placeholder="TEE SHIRT" /></label>
                 <label>Category
                   <select id="category" required>
-                    <option value="Pods">Pods</option>
-                    <option value="Devices">Devices</option>
-                    <option value="E-Juice">E-Juice</option>
-                    <option value="Battery">Battery</option>
-                    <option value="Accessories">Accessories</option>
-                    <option value="Promo">Promo</option>
+                    <option value="Oversized">Oversized</option>
+                    <option value="Vintage">Vintage</option>
+                    <option value="Minimal">Minimal</option>
+                    <option value="Anime">Anime</option>
+                    <option value="Couple">Couple</option>
+                    <option value="New Arrival">New Arrival</option>
                   </select>
                 </label>
-                <label>Price<input id="price" type="number" min="0" required placeholder="450" /></label>
-                <label>Old Price<input id="oldPrice" type="number" min="0" required placeholder="500" /></label>
+                <label>Price<input id="price" type="number" min="0" required placeholder="250" /></label>
+                <label>Old Price<input id="oldPrice" type="number" min="0" required placeholder="349" /></label>
                 <label>Stock<input id="stock" type="number" min="0" required placeholder="20" /></label>
                 <label>Sold Text<input id="sold" placeholder="120+ sold" /></label>
-                <label>Badge<input id="badge" placeholder="8 Flavors" /></label>
+                <label>Badge<input id="badge" placeholder="Bulk Deal" /></label>
               </div>
 
               <label>Main Image URL<input id="image" required placeholder="https://..." /></label>
@@ -163,7 +163,7 @@
         <section class="panel">
           <div class="panel-head">
             <h2>Messages</h2>
-            <p>Messenger-style vape shop chat for admin.</p>
+            <p>Messenger-style custom bulk order chat for admin.</p>
           </div>
           <div class="admin-messenger">
             <div class="admin-conversation-list" id="messagesList"></div>
@@ -171,11 +171,6 @@
               <div class="admin-conversation-header" id="adminConversationHeader">Select a conversation</div>
               <div class="admin-chat-window" id="adminChatWindow"></div>
               <div class="admin-compose">
-                <div class="chat-quick-row" aria-label="Admin quick replies">
-                  <button class="chat-quick" type="button" data-admin-quick-reply="Hi! Yes, this is available. What flavor or color do you prefer?">Available</button>
-                  <button class="chat-quick" type="button" data-admin-quick-reply="Thank you! Please send your preferred product, flavor, quantity, and pickup/delivery details.">Ask details</button>
-                  <button class="chat-quick" type="button" data-admin-quick-reply="Your order is noted. We will update you shortly.">Order noted</button>
-                </div>
                 <textarea id="adminReplyText" placeholder="Type your reply to the customer here..."></textarea>
                 <div class="chat-upload-row">
                   <label class="upload-chip" for="adminReplyImage">📷 Add Image</label>
@@ -190,7 +185,6 @@
                   <select id="adminMessageStatus" class="order-status-select">
                     <option value="New">New</option>
                     <option value="Replied">Replied</option>
-                    <option value="Archived">Archived</option>
                   </select>
                   <button class="btn dark" id="sendAdminReplyBtn">Send Reply</button>
                 </div>
