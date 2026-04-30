@@ -1,13 +1,16 @@
-TEE SHIRT - MESSENGER UPGRADE
+TEE SHIRT ULTRA PRO MAX CLEAN BUILD v7
 
-Included:
-- customer messenger-style bulk order chat modal
-- customer can see admin replies in chat bubbles
-- admin messenger-style inbox with conversation list
-- admin chat panel to reply in real time-like flow
-- NEW message highlighting
-- admin notification beep on new conversations
-- works with Firebase and local fallback
+Upload all files to GitHub Pages. This build uses app-v7.js and styles-v7.css to avoid browser cache.
 
-Important:
-Firestore rules for messages are now more open so customer can read/update chat conversations without login.
+Fixes included:
+- Customer messages no longer double-send.
+- Send button is protected against double clicks.
+- Inbox opens the real chat.
+- Customer/admin can send images and files.
+- Firebase Storage upload support with fallback.
+- Full-screen image preview.
+- Product Send to Chat button.
+- Admin search and quick replies.
+
+If using Firebase Storage, paste storage.rules into Firebase Storage Rules.
+After upload, press CTRL + F5.

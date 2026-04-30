@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tee Shirt Admin</title>
-  <link rel="stylesheet" href="./styles-v3.css" />
+  <link rel="stylesheet" href="./styles-v7.css" />
 </head>
 <body data-page="admin">
   <div class="admin-app">
@@ -165,16 +165,19 @@
             <h2>Messages</h2>
             <p>Messenger-style custom bulk order chat for admin.</p>
           </div>
+          <div class="admin-chat-tools"><input id="adminMessageSearch" class="admin-chat-search" placeholder="Search customer or phone..." /><button class="btn ghost" id="convertChatToOrderBtn" type="button">Convert to Order</button></div>
           <div class="admin-messenger">
             <div class="admin-conversation-list" id="messagesList"></div>
             <div class="admin-conversation-panel">
               <div class="admin-conversation-header" id="adminConversationHeader">Select a conversation</div>
               <div class="admin-chat-window" id="adminChatWindow"></div>
               <div class="admin-compose">
+                <div class="quick-replies"><button type="button" class="quick-reply" data-reply="Hi! Thanks for messaging us. Please send your design, sizes, quantity, and target date.">Ask details</button><button type="button" class="quick-reply" data-reply="Noted. We are checking this and will update you shortly.">Checking</button><button type="button" class="quick-reply" data-reply="Your order is ready for confirmation. Please review the details.">Confirm order</button></div>
                 <textarea id="adminReplyText" placeholder="Type your reply to the customer here..."></textarea>
+                <div class="typing-hint" id="adminTypingHint"></div>
                 <div class="chat-upload-row">
-                  <label class="upload-chip" for="adminReplyImage">📷 Add Image</label>
-                  <input id="adminReplyImage" class="hidden-file-input" type="file" accept="image/*" />
+                  <label class="upload-chip" for="adminReplyImage">📎 Add File/Image</label>
+                  <input id="adminReplyImage" class="hidden-file-input" type="file" accept="image/*,.pdf,.doc,.docx" />
                   <span class="upload-file-name" id="adminReplyImageName">No image selected</span>
                 </div>
                 <div class="chat-image-preview hidden" id="adminReplyImagePreviewWrap">
@@ -186,7 +189,7 @@
                     <option value="New">New</option>
                     <option value="Replied">Replied</option>
                   </select>
-                  <button class="btn dark" id="sendAdminReplyBtn">Send Reply</button>
+                  <button class="btn dark" id="sendAdminReplyBtn" type="button">Send Reply</button>
                 </div>
               </div>
             </div>
@@ -198,8 +201,9 @@
     </main>
   </div>
 
+  <div class="image-viewer hidden" id="imageViewer"><button class="image-viewer-close" id="imageViewerClose" type="button">✕</button><img id="imageViewerImg" alt="Preview" /></div>
   <div class="notice" id="notice"></div>
 
-  <script type="module" src="./app-v3.js"></script>
+  <script type="module" src="./app-v7.js"></script>
 </body>
 </html>

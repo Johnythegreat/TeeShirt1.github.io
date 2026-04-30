@@ -1,5 +1,6 @@
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
@@ -18,14 +19,16 @@ const ADMIN_EMAILS = [
 
 let db = null;
 let auth = null;
+let storage = null;
 let firebaseReady = false;
 try {
   const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
   db = getFirestore(app);
   auth = getAuth(app);
+  storage = getStorage(app);
   firebaseReady = true;
 } catch (error) {
   console.warn("Firebase init failed. Local mode will be used.", error);
 }
 
-export { db, auth, firebaseReady, ADMIN_EMAILS };
+export { db, auth, storage, firebaseReady, ADMIN_EMAILS };
